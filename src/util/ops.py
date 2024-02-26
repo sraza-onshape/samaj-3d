@@ -94,7 +94,7 @@ def compute_similarity(
 
     def _compute_sum_absolute_difference(arr1: np.ndarray, arr2: np.ndarray) -> float:
         """Output array has a shape of (1,)."""
-        return np.sum(np.lingalg(arr1 - arr2), ord=1)
+        return np.sum(np.linalg(arr1 - arr2), ord=1)
 
     ### DRIVER
     measure_funcs = {
