@@ -21,6 +21,7 @@ class SimilarityMeasure(Enum):
     SSD = "sum_squared_difference"
     NCC = "normalized_cross_correlation"  # aka, the Pearson Correlation Coef
     COS = "cosine_similarity"
+    SAD = "sum_absolute_difference"
     NULL = "randomness"  #  when selected, this means we don't actually care about similarity
 
 
@@ -56,6 +57,7 @@ def compute_similarity(
         SimilarityMeasure.NCC,
         SimilarityMeasure.SSD,
         SimilarityMeasure.COS,
+        SimilarityMeasure.SAD,
     ],
     arr1: np.ndarray,
     arr2: np.ndarray,
@@ -65,7 +67,7 @@ def compute_similarity(
     whatever similiarity measure you want to compute.
 
     Parameters:
-        mode(SimilarityMeasure): specify if you want normalized cross-correlation, SSD, or cosine similarity
+        mode(SimilarityMeasure): specify if you want normalized cross-correlation, SSD, cosine similarity, or SAD
         arr1, arr2: two array-likes of the same shape
     
     Returns: array-like
@@ -90,11 +92,16 @@ def compute_similarity(
         """Output array has a shape of (1,)."""
         return (arr1 @ arr2) / (np.linalg.norm(arr1) * np.linalg.norm(arr2))
 
+    def _compute_sum_absolute_difference(arr1: np.ndarray, arr2: np.ndarray) -> float:
+        """Output array has a shape of (1,)."""
+        return np.sum(np.lingalg(arr1 - arr2), ord=1)
+
     ### DRIVER
     measure_funcs = {
         SimilarityMeasure.SSD: _compute_ssd,
         SimilarityMeasure.NCC: _compute_ncc,
         SimilarityMeasure.COS: _compute_cosine_similarity,
+        SimilarityMeasure.SAD: _compute_sum_absolute_difference,
     }
     return measure_funcs[mode](arr1, arr2)
 
