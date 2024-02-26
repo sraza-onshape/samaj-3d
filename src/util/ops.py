@@ -257,8 +257,29 @@ def pad(
         List[int]
     ],  # TODO[make it so users can just specify dims of the filter)
     stride: int,
-    padding_type: str,
-) -> Tuple[np.array, int, int]:
+    padding_type: Union[Literal["zero"], Literal["repeat"]],
+) -> Tuple[np.ndarray, int, int]:
+    """
+    Add additional pixels along the border of an image.
+
+    This auto-computes the dimensions that a padded image would need to have,
+    in order for the output of a filtering operation to have the same dimensions
+    as a given input image.
+
+    Parameters:
+        image(array-like): 2D array representing an image
+        img_filter(array-like): 2D array representing some linear
+                                operator you want to eventually use to
+                                perform some kind of processing on the image
+        stride(int): what distance you would want there to be in between each
+                     local neighborhood of the image used for a filtering operation
+        padding_type("zero" or "repeat"): determines the value used in the added pixels
+
+    Returns: tuple[array-like, int, int]: the padded image, as
+                                          well as two ints reporting how 
+                                          much bigger the height and width of it are
+                                          vs. the original image
+    """
     padded_image = list()
 
     # compute the # of pixels needed to pad the image (in x and y)
