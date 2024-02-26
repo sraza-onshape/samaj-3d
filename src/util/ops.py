@@ -70,7 +70,7 @@ def compute_similarity(
         mode(SimilarityMeasure): specify if you want normalized cross-correlation, SSD, cosine similarity, or SAD
         arr1, arr2: two array-likes of the same shape
     
-    Returns: array-like
+    Returns: float: the computed similarity value
     """
 
     ### HELPERS
