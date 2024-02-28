@@ -69,7 +69,7 @@ def compute_similarity(
     Parameters:
         mode(SimilarityMeasure): specify if you want normalized cross-correlation, SSD, cosine similarity, or SAD
         arr1, arr2: two array-likes of the same shape
-    
+
     Returns: float: the computed similarity value
     """
 
@@ -94,7 +94,7 @@ def compute_similarity(
 
     def _compute_sum_absolute_difference(arr1: np.ndarray, arr2: np.ndarray) -> float:
         """Output array has a shape of (1,)."""
-        return np.sum(np.linalg(arr1 - arr2), ord=1)
+        return np.sum(np.linalg.norm(arr1 - arr2, ord=1))
 
     ### DRIVER
     measure_funcs = {
@@ -283,7 +283,7 @@ def pad(
         padding_type("zero" or "repeat"): determines the value used in the added pixels
 
     Returns: tuple[array-like, int, int]: the padded image, as
-                                          well as two ints reporting how 
+                                          well as two ints reporting how
                                           much bigger the height and width of it are
                                           vs. the original image
     """
