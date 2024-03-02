@@ -1,19 +1,41 @@
+import argparse
 import numpy as np
 import pickle
 import time
 import sys
 import cv2
 from scipy.signal import medfilt
-from scipy.ndimage.filters import maximum_filter as maxfilt
+from scipy.ndimage import maximum_filter as maxfilt
 
-def PointCloud2Image(M,Sets3DRGB,viewport,filter_size):
+def PointCloud2Image(
+        M: list[list[int | float]],  # 
+        Sets3DRGB: list,
+        viewport: list[int],
+        filter_size: int | list[int],
+        enable_max_filter: bool = False,
+    ):
+    """
+    Renders one image from the 3D point cloud.
 
+    Parameters:
+        M: the 3x4 projection matrix
+        Sets3DRGB: a 2x3xn list, containing n points in the scene.
+            The first 3 rows encode XYZ locations. The last 3 encode RGB values.
+        viewport: 4-vector that encodes the image dimensions.
+        filter_size: ignored for now - in theory, we could use this when
+            calling `scipy.signal.medfilt`
+        enable_max_filter: bool that can turn on 2D max_filtering
+            (an operation used to "fill-in" blanks in the image).
+
+    Returns: np.ndarray: a RGB image in channels-last format
+    """
     # setting yp output image
     print("...Initializing 2D image...")
     top = viewport[0]
     left = viewport[1]
     h = viewport[2]
     w = viewport[3]
+    print(f"ZAIN!! Given height and width: {(h, w)}")
     bot = top  + h + 1
     right = left + w +1
     output_image = np.zeros((h+1,w+1,3));    
@@ -28,7 +50,7 @@ def PointCloud2Image(M,Sets3DRGB,viewport,filter_size):
         dataset = Sets3DRGB[counter]
         P3D = dataset[:3,:]
         color = (dataset[3:6,:]).T
-        
+
         # form homogeneous 3D points (4xN)
         len_P = len(P3D[1])
         ones = np.ones((1,len_P))
@@ -63,12 +85,13 @@ def PointCloud2Image(M,Sets3DRGB,viewport,filter_size):
         # filter individual color channels
         shape = cropped_canvas.shape
         filtered_cropped_canvas = np.zeros(shape)
-        print("...Running 2D filters...")
-        for i in range(3):
-            # max filter
-            filtered_cropped_canvas[:,:,i] = maxfilt(cropped_canvas[:,:,i],5)
 
-        
+        if enable_max_filter:
+            print("...Running 2D filters...")
+            for i in range(3):
+                # max filter
+                filtered_cropped_canvas[:,:,i] = maxfilt(cropped_canvas[:,:,i],5)
+
         # get indices of pixel drawn in the current canvas
         drawn_pixels = np.sum(filtered_cropped_canvas,2)
         idx = drawn_pixels != 0
@@ -84,21 +107,30 @@ def PointCloud2Image(M,Sets3DRGB,viewport,filter_size):
         # erase canvas drawn pixels from the output image
         output_image[idxx] = 0
 
-        #sum current canvas on top of output image
+        # sum current canvas on top of output image
         output_image = output_image + filtered_cropped_canvas
 
     print("Done")
     return output_image
 
 
+def SampleCameraPath(enable_max_filter: bool = False) -> None:
+    """
+    Example script for rendering images in a "path" around the fish statue.
 
-# Sample use of PointCloud2Image(...)
-# The following variables are contained in the provided data file:
-#       BackgroundPointCloudRGB,ForegroundPointCloudRGB,K,crop_region,filter_size
-# None of these variables needs to be modified
+    None of these variables needs to be modified - they are provided in the data file:
+    - BackgroundPointCloudRGB
+    - ForegroundPointCloudRGB
+    - K
+    - crop_region
+    - filter_size
 
-# load variables: BackgroundPointCloudRGB,ForegroundPointCloudRGB,K,crop_region,filter_size)
-def SampleCameraPath():
+    Parameters:
+        enable_max_filter: bool that can turn on 2D max_filtering
+            (an operation used to "fill-in" blanks in the image).
+
+    Returns: None
+    """
     # load object file to retrieve data
     file_p = open("./data/data.obj",'rb')
     camera_objs = pickle.load(file_p)
@@ -111,19 +143,23 @@ def SampleCameraPath():
     BackgroundPointCloudRGB = camera_objs[4]
 
     # create variables for computation
-    data3DC = (BackgroundPointCloudRGB,ForegroundPointCloudRGB)
+    data3DC = (
+        BackgroundPointCloudRGB,
+        ForegroundPointCloudRGB
+    )
     R = np.identity(3)
     move = np.array([0, 0, -0.25]).reshape((3,1))
 
     for step in range(8):
         tic = time.time()
-        
+
         fname = "SampleOutput{}.jpg".format(step)
         print("\nGenerating {}".format(fname))
         t = step*move
         M = np.matmul(K,(np.hstack((R,t))))
 
-        img = PointCloud2Image(M,data3DC,crop_region,filter_size)
+        img = PointCloud2Image(M, data3DC, crop_region, filter_size,
+                               enable_max_filter=enable_max_filter)
 
         # Convert image values form (0-1) to (0-255) and cahnge type from float64 to float32
         img = 255*(np.array(img, dtype=np.float32))
@@ -138,8 +174,17 @@ def SampleCameraPath():
         toc = toc-tic
         print("{0:.4g} s".format(toc))
 
+
 def main():
-    SampleCameraPath()
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--enable_max_filter",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="bool that can turn on 2D max_filtering",
+    )
+    args = parser.parse_args()
+    SampleCameraPath(enable_max_filter=args.enable_max_filter)
 
 if __name__ == "__main__":
     main()
