@@ -178,13 +178,13 @@ def SampleCameraPath(enable_max_filter: bool = False) -> None:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--enable_max_filter",
+        "--use_max_filter",
         action=argparse.BooleanOptionalAction,
         default=False,
         help="bool that can turn on 2D max_filtering",
     )
     args = parser.parse_args()
-    SampleCameraPath(enable_max_filter=args.enable_max_filter)
+    SampleCameraPath(enable_max_filter=args.use_max_filter)
 
 if __name__ == "__main__":
     main()
