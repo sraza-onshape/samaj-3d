@@ -42,7 +42,7 @@ def scale_intrinsics(K, scale=1.0):
 
 def SampleCameraPath():
     # load object file to retrieve data
-    file_p = open("data/data.obj",'rb')
+    file_p = open("./data/data.obj",'rb')
     camera_objs = pickle.load(file_p)
 
     # extract objects from object array
