@@ -12,12 +12,14 @@ from PIL import Image
 
 
 class Filter2D(Enum):
+    """Two-dimensional filters commonly used in computer vision."""
     HORIZONTAL_SOBEL_FILTER = [[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]]
     IDENTITY_FILTER = [[0, 0, 0], [0, 1, 0], [0, 0, 0]]
     VERTICAL_SOBEL_FILTER = [[-1, -2, -1], [0, 0, 0], [1, 2, 1]]
 
 
 class SimilarityMeasure(Enum):
+    """Similarity measures commonly used in computer vision."""
     SSD = "sum_squared_difference"
     NCC = "normalized_cross_correlation"  # aka, the Pearson Correlation Coef
     COS = "cosine_similarity"
@@ -157,7 +159,9 @@ def load_image(
 
 
 def convolve_matrices(matrix1: List[List[float]], matrix2: List[List[float]]) -> float:
-    """asumes both matrices have the same, non-zero dimensions"""
+    """
+    Convolution in 2D, assuming both matrices have the same, non-zero dimensions.
+    """
     width, height = len(matrix1[0]), len(matrix1)
 
     product = 0
