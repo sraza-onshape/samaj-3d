@@ -1,0 +1,55 @@
+#!/usr/bin/env python
+
+import subprocess
+import sys
+import platform
+
+
+def get_image_dimensions(file_path: str) -> list[str] | RuntimeError: 
+    """
+      Uses the `sips` command to get the pixelHeight and pixelWidth of some image
+      (the user provides the absolute file path thereof).
+
+      Returns: list of two strs, e.g.:
+        ["pixelWidth: 3073", "pixelHeight: 2049"]
+    """
+    commands = [
+        ["sips", "-g", "pixelWidth", file_path],
+        ["sips", "-g", "pixelHeight", file_path],
+    ]
+
+    results = [
+        subprocess.run(command, capture_output=True, text=True)
+        for command in commands
+    ]
+
+    dimensions = []
+    for result in results:
+        if result.returncode == 0:
+            output = result.stdout.strip().split("\n")
+            print(output)
+            dimensions.append(output[1])
+        else:
+            raise RuntimeError("Failed to get image dimensions using sips.")
+    return dimensions
+
+
+def main() -> None:
+    """
+    Sample usage:
+
+    ```python
+    $ ./image_dims /path/to/my/image.png
+    ```
+    """
+    if platform.system() == "Darwin":  # aka, macOS       
+        abs_image_file_path = sys.argv[1]
+        dimensions = get_image_dimensions(abs_image_file_path)
+        print("Image dimensions:")
+        print(dimensions[0])  # pixelWidth
+        print(dimensions[1])  # pixelHeight
+    else:
+        raise NotImplementedError("This script only works on macOS.")
+
+if __name__ == "__main__":
+    main()
