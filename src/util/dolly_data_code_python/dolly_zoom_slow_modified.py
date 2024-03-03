@@ -7,13 +7,15 @@ import cv2
 from scipy.signal import medfilt
 from scipy.ndimage import maximum_filter as maxfilt
 
+
 def PointCloud2Image(
-        M: list[list[int | float]],  # 
-        Sets3DRGB: list,
-        viewport: list[int],
-        filter_size: int | list[int],
-        enable_max_filter: bool = False,
-    ):
+    M: list[list[int | float]],  #
+    Sets3DRGB: list,
+    viewport: np.ndarray,
+    filter_size: int | list[int],
+    enable_max_filter: bool = False,
+    resolution_scale_factor: float = 1.0,
+):
     """
     Renders one image from the 3D point cloud.
 
@@ -26,6 +28,8 @@ def PointCloud2Image(
             calling `scipy.signal.medfilt`
         enable_max_filter: bool that can turn on 2D max_filtering
             (an operation used to "fill-in" blanks in the image).
+        resolution_scale_factor: A multiplier used to reduce the image 
+            heightxwidth (from the default of 2048x3072).
 
     Returns: np.ndarray: a RGB image in channels-last format
     """
@@ -33,11 +37,11 @@ def PointCloud2Image(
     print("...Initializing 2D image...")
     top = viewport[0]
     left = viewport[1]
-    h = viewport[2]
-    w = viewport[3]
-    print(f"ZAIN!! Given height and width: {(h, w)}")
-    bot = top  + h + 1
-    right = left + w +1
+    h = int(viewport[2] / (resolution_scale_factor // 2))
+    w = int(viewport[3] / (int(resolution_scale_factor // 2)))
+    bot = top + h + 1
+    right = left + w + 1
+
     output_image = np.zeros((h+1,w+1,3));    
 
     for counter in range(len(Sets3DRGB)):
@@ -114,7 +118,10 @@ def PointCloud2Image(
     return output_image
 
 
-def SampleCameraPath(enable_max_filter: bool = False) -> None:
+def SampleCameraPath(
+        enable_max_filter: bool = False,
+        resolution_scale_factor: float = 1.0,
+    ) -> None:
     """
     Example script for rendering images in a "path" around the fish statue.
 
@@ -158,8 +165,14 @@ def SampleCameraPath(enable_max_filter: bool = False) -> None:
         t = step*move
         M = np.matmul(K,(np.hstack((R,t))))
 
-        img = PointCloud2Image(M, data3DC, crop_region, filter_size,
-                               enable_max_filter=enable_max_filter)
+        img = PointCloud2Image(
+            M,
+            data3DC,
+            crop_region,
+            filter_size,
+            enable_max_filter=enable_max_filter,
+            resolution_scale_factor=resolution_scale_factor,
+        )
 
         # Convert image values form (0-1) to (0-255) and cahnge type from float64 to float32
         img = 255*(np.array(img, dtype=np.float32))
@@ -178,13 +191,23 @@ def SampleCameraPath(enable_max_filter: bool = False) -> None:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--use_max_filter",
+        "--use-max-filter",
         action=argparse.BooleanOptionalAction,
         default=False,
-        help="bool that can turn on 2D max_filtering",
+        help="turn on/off 2D max_filtering",
+    )
+    parser.add_argument(
+        "--resolution-scale-factor",
+        required=False,
+        type=float,
+        default=1.0,
+        help="A multiplier used to reduce the image heightxwidth (from the default of 2048x3072).",
     )
     args = parser.parse_args()
-    SampleCameraPath(enable_max_filter=args.use_max_filter)
+    SampleCameraPath(
+        enable_max_filter=args.use_max_filter,
+        resolution_scale_factor=args.resolution_scale_factor,
+    )
 
 if __name__ == "__main__":
     main()
