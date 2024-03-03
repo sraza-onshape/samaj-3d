@@ -511,13 +511,15 @@ def main():
             (318, 308, 1),
         )
         left_bleachers_courtside_source = np.cross((17, 173, 1), (227, 49, 1))
-        source_lines = np.vstack([
-            right_perimeter_of_court_source,
-            left_perimeter_of_court_source,
-            half_court_line_source,
-            right_bleachers_courtside_source,
-            left_bleachers_courtside_source,
-        ])
+        source_lines = np.vstack(
+            [
+                right_perimeter_of_court_source,
+                left_perimeter_of_court_source,
+                half_court_line_source,
+                right_bleachers_courtside_source,
+                left_bleachers_courtside_source,
+            ]
+        )
         source_lines = np.stack(
             [
                 source_lines[:, 0] / source_lines[:, 2],
@@ -528,18 +530,28 @@ def main():
 
         # define lines in the output
         destination_image_dims = (940, 500)
-        right_perimeter_of_court_destination = np.array([1, 0, destination_image_dims[1] * (7/8)])
-        left_perimeter_of_court_destination = np.array([1, 0, destination_image_dims[1] * (3/8)])
-        half_court_line_destination = np.array([0, 1, destination_image_dims[0]/2])
-        right_bleachers_courtside_destination = np.array([1, 0, destination_image_dims[1] * (3/4)])
-        left_bleachers_courtside_destination = np.array([1, 0, destination_image_dims[1] * (1/4)])
-        destination_lines = np.vstack([
-            right_perimeter_of_court_destination,
-            left_perimeter_of_court_destination,
-            half_court_line_destination,
-            right_bleachers_courtside_destination,
-            left_bleachers_courtside_destination,
-        ])
+        right_perimeter_of_court_destination = np.array(
+            [1, 0, destination_image_dims[1] * (7 / 8)]
+        )
+        left_perimeter_of_court_destination = np.array(
+            [1, 0, destination_image_dims[1] * (3 / 8)]
+        )
+        half_court_line_destination = np.array([0, 1, destination_image_dims[0] / 2])
+        right_bleachers_courtside_destination = np.array(
+            [1, 0, destination_image_dims[1] * (3 / 4)]
+        )
+        left_bleachers_courtside_destination = np.array(
+            [1, 0, destination_image_dims[1] * (1 / 4)]
+        )
+        destination_lines = np.vstack(
+            [
+                right_perimeter_of_court_destination,
+                left_perimeter_of_court_destination,
+                half_court_line_destination,
+                right_bleachers_courtside_destination,
+                left_bleachers_courtside_destination,
+            ]
+        )
         destination_lines = np.stack(
             [
                 destination_lines[:, 0] / destination_lines[:, 2],
@@ -562,7 +574,9 @@ def main():
             use_logging=False,
         )
         plt.imshow(image_from_top_attempt_3.astype(np.uint8))
-        plt.title("1.c. Attempted Warping of Basketball Court (with Line-Based Homography)")
+        plt.title(
+            "1.c. Attempted Warping of Basketball Court (with Line-Based Homography)"
+        )
         plt.axis("off")
         plt.show()
     elif args.operation == 2:
@@ -576,7 +590,7 @@ def main():
             scale_factor_focal_length=1.125,
             total_rotation_in_radians=np.pi,
             path_to_point_cloud="./code/dolly_data_code_python/data.obj",
-            render_synchronously=True
+            render_synchronously=True,
         )
 
 

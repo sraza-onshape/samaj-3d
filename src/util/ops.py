@@ -13,6 +13,7 @@ from PIL import Image
 
 class Filter2D(Enum):
     """Two-dimensional filters commonly used in computer vision."""
+
     HORIZONTAL_SOBEL_FILTER = [[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]]
     IDENTITY_FILTER = [[0, 0, 0], [0, 1, 0], [0, 0, 0]]
     VERTICAL_SOBEL_FILTER = [[-1, -2, -1], [0, 0, 0], [1, 2, 1]]
@@ -20,6 +21,7 @@ class Filter2D(Enum):
 
 class SimilarityMeasure(Enum):
     """Similarity measures commonly used in computer vision."""
+
     SSD = "sum_squared_difference"
     NCC = "normalized_cross_correlation"  # aka, the Pearson Correlation Coef
     COS = "cosine_similarity"

@@ -45,9 +45,7 @@ class GaussianDerivativeFilter(BaseGaussianFilter):
         # convert to numpy array (only for the purpose of making element-wise computations easier)
         partial_derivative_x = np.array(partial_derivative_x)
         partial_derivative_y = np.array(partial_derivative_y)
-        magnitude = np.sqrt(
-            (partial_derivative_x**2) + (partial_derivative_y**2)
-        )
+        magnitude = np.sqrt((partial_derivative_x**2) + (partial_derivative_y**2))
         return magnitude
 
     def detect_edges(
