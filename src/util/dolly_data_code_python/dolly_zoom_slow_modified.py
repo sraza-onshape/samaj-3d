@@ -195,6 +195,8 @@ def SampleCameraPath(
         fname = "StereoOutput{}.jpg".format(step)
         print("\nGenerating {}".format(fname))
         t = step * move
+        print(f"Rotation matrix (R): {R}")
+        print(f"Translation (t): {t}")
         M = np.matmul(K, (np.hstack((R, t))))
 
         img = PointCloud2Image(
