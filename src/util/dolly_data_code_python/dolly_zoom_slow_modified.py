@@ -91,18 +91,18 @@ def PointCloud2Image(
         # crop canvas to desired output size
         cropped_canvas = canvas[top:top+h+1,left:left+w+1]
 
-        # filter individual color channels
-        shape = cropped_canvas.shape
-        filtered_cropped_canvas = np.zeros(shape)
-
         if enable_max_filter:
+            # filter individual color channels
+            shape = cropped_canvas.shape
+            filtered_cropped_canvas = np.zeros(shape)
             print("...Running 2D filters...")
             for i in range(3):
                 # max filter
                 filtered_cropped_canvas[:,:,i] = maxfilt(cropped_canvas[:,:,i],5)
+            cropped_canvas = filtered_cropped_canvas
 
         # get indices of pixel drawn in the current canvas
-        drawn_pixels = np.sum(filtered_cropped_canvas,2)
+        drawn_pixels = np.sum(cropped_canvas, 2)
         idx = drawn_pixels != 0
         shape = idx.shape
         shape = (shape[0],shape[1],3)
@@ -117,7 +117,7 @@ def PointCloud2Image(
         output_image[idxx] = 0
 
         # sum current canvas on top of output image
-        output_image = output_image + filtered_cropped_canvas
+        output_image = output_image + cropped_canvas
 
     print("Done")
     return output_image
@@ -173,7 +173,7 @@ def SampleCameraPath(
         ForegroundPointCloudRGB
     )
     R = np.identity(3)
-    move = np.array([0, 0, -0.25]).reshape((3,1))
+    move = np.array([-2.2, -1.35, -0.25]).reshape((3,1))
 
     for step in range(8):
         tic = time.time()
@@ -188,6 +188,7 @@ def SampleCameraPath(
             data3DC,
             crop_region,
             filter_size,
+            # TODO[Zain] - and how to tighten the zoom, and positions for 2 rectified images
             enable_max_filter=enable_max_filter,
             resolution_scale_factor=resolution_scale_factor,
         )
