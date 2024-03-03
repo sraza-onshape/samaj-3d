@@ -27,7 +27,6 @@ def get_image_dimensions(file_path: str) -> list[str] | RuntimeError:
     for result in results:
         if result.returncode == 0:
             output = result.stdout.strip().split("\n")
-            print(output)
             dimensions.append(output[1])
         else:
             raise RuntimeError("Failed to get image dimensions using sips.")

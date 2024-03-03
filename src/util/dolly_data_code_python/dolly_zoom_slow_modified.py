@@ -137,7 +137,6 @@ def PointCloud2Image(
 def SampleCameraPath(
         enable_max_filter: bool = False,
         resolution_scale_factor: float = 1.0,
-        focal_length_scale_factor: float = 1.0,
         save_dir: str = "./",
         num_frames: int = 8,
         enable_depth_logging: bool = False,
@@ -172,18 +171,20 @@ def SampleCameraPath(
     crop_region = camera_objs[0].flatten()
     filter_size = camera_objs[1].flatten()
     K = camera_objs[2]
-    print(f"intrinisic matrix (before changes): ", K)
     ForegroundPointCloudRGB = camera_objs[3]
     BackgroundPointCloudRGB = camera_objs[4]
 
     # scale the focal lengths
-    K[0, 0] *= focal_length_scale_factor
-    K[1, 1] *= focal_length_scale_factor
+    if resolution_scale_factor != 1.0:
+        print(f"intrinisic matrix (before changes): ", K)
+        focal_length_scale_factor = 1 / (resolution_scale_factor // 2)
+        K[0, 0] *= focal_length_scale_factor
+        K[1, 1] *= focal_length_scale_factor
 
-    # adjust the principal point
-    K[0, 2] *= focal_length_scale_factor
-    K[1, 2] *= focal_length_scale_factor
-    print(f"intrinisic matrix (after changes): ", K)
+        # adjust the principal point
+        K[0, 2] *= focal_length_scale_factor
+        K[1, 2] *= focal_length_scale_factor
+        print(f"intrinisic matrix (after changes): ", K)
 
     # create variables for computation
     data3DC = (
@@ -241,13 +242,6 @@ def main():
         help="A multiplier used to reduce the image heightxwidth (from the default of 2048x3072).",
     )
     parser.add_argument(
-        "--focal-length-scale-factor",
-        required=False,
-        type=float,
-        default=1.0,
-        help="A multiplier used to reduce the focal length - in effect adjusting the camera FOV.",
-    )
-    parser.add_argument(
         "--save-dir",
         required=False,
         type=str,
@@ -272,7 +266,6 @@ def main():
     SampleCameraPath(
         enable_max_filter=args.use_max_filter,
         resolution_scale_factor=args.resolution_scale_factor,
-        focal_length_scale_factor=args.focal_length_scale_factor,
         save_dir=args.save_dir,
         num_frames=args.num_frames,
         enable_depth_logging=args.use_depth_logging,
