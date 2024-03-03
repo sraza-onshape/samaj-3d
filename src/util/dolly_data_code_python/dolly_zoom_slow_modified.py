@@ -2,7 +2,6 @@ import argparse
 import numpy as np
 import pickle
 import time
-import sys
 import cv2
 from scipy.signal import medfilt
 from scipy.ndimage import maximum_filter as maxfilt
@@ -15,6 +14,7 @@ def PointCloud2Image(
     filter_size: int | list[int],
     enable_max_filter: bool = False,
     resolution_scale_factor: float = 1.0,
+    use_depth_logging: bool = False,
 ):
     """
     Renders one image from the 3D point cloud.
@@ -28,12 +28,13 @@ def PointCloud2Image(
             calling `scipy.signal.medfilt`
         enable_max_filter: bool that can turn on 2D max_filtering
             (an operation used to "fill-in" blanks in the image).
-        resolution_scale_factor: A multiplier used to reduce the image 
+        resolution_scale_factor: A multiplier used to reduce the image
             heightxwidth (from the default of 2048x3072).
+        use_depth_logging: print the closest and farthest depth of 3D scene points (assumed to be in meters).
 
     Returns: np.ndarray: a RGB image in channels-last format
     """
-    # setting yp output image
+    # setting up output image
     print("...Initializing 2D image...")
     top = viewport[0]
     left = viewport[1]
@@ -49,6 +50,7 @@ def PointCloud2Image(
 
     output_image = np.zeros((h+1,w+1,3));    
 
+    depth_range: list = [float("inf"), float("-inf")]
     for counter in range(len(Sets3DRGB)):
         print("...Projecting point cloud into image plane...")
 
@@ -64,6 +66,10 @@ def PointCloud2Image(
         len_P = len(P3D[1])
         ones = np.ones((1,len_P))
         X = np.concatenate((P3D, ones))
+
+        # collect the depth range
+        depth_range[0] = min(depth_range[0], np.min(X[2, :]))
+        depth_range[1] = max(depth_range[1], np.max(X[2, :]))
 
         # apply (3x4) projection matrix
         x = np.matmul(M,X)
@@ -119,6 +125,11 @@ def PointCloud2Image(
         # sum current canvas on top of output image
         output_image = output_image + cropped_canvas
 
+    if use_depth_logging:
+        print(
+            f"Range of scene depth (assuming units in meters): {depth_range}"
+        )
+
     print("Done")
     return output_image
 
@@ -127,7 +138,9 @@ def SampleCameraPath(
         enable_max_filter: bool = False,
         resolution_scale_factor: float = 1.0,
         focal_length_scale_factor: float = 1.0,
-        save_dir: str = "./"
+        save_dir: str = "./",
+        num_frames: int = 8,
+        enable_depth_logging: bool = False,
     ) -> None:
     """
     Example script for rendering images in a "path" around the fish statue.
@@ -140,13 +153,14 @@ def SampleCameraPath(
     - filter_size
 
     Parameters:
-        enable_max_filter: bool that can turn on 2D max_filtering
+        enable_max_filter(bool): can turn on 2D max_filtering
             (an operation used to "fill-in" blanks in the image).
-        resolution_scale_factor: A multiplier used to reduce the image
+        resolution_scale_factor(float): A multiplier used to reduce the image
             heightxwidth (from the default of 2048x3072).
-        focal_length_scale_factor: A multiplier used to reduce
+        focal_length_scale_factor(float): A multiplier used to reduce
             the focal length - in effect adjusting the camera FOV.
-        save_dir: Relative path to a folder for storing rendered images.
+        save_dir(str): Relative path to a folder for storing rendered images.
+        enable_depth_logging(bool): print the closest and farthest depth of 3D scene points (assumed to be in meters).
 
     Returns: None
     """
@@ -158,14 +172,18 @@ def SampleCameraPath(
     crop_region = camera_objs[0].flatten()
     filter_size = camera_objs[1].flatten()
     K = camera_objs[2]
-    print(f"ZAIN!!! intrinisic matrix (before scaling): ", K)
+    print(f"intrinisic matrix (before changes): ", K)
     ForegroundPointCloudRGB = camera_objs[3]
     BackgroundPointCloudRGB = camera_objs[4]
 
-    # apply the focal lengths
+    # scale the focal lengths
     K[0, 0] *= focal_length_scale_factor
     K[1, 1] *= focal_length_scale_factor
-    print(f"ZAIN!!! intrinisic matrix (after scaling): ", K)
+
+    # adjust the principal point
+    K[0, 2] *= focal_length_scale_factor
+    K[1, 2] *= focal_length_scale_factor
+    print(f"intrinisic matrix (after changes): ", K)
 
     # create variables for computation
     data3DC = (
@@ -173,12 +191,12 @@ def SampleCameraPath(
         ForegroundPointCloudRGB
     )
     R = np.identity(3)
-    move = np.array([-2.2, -1.35, -0.25]).reshape((3,1))
+    move = np.array([.155, 0., 0]).reshape((3, 1))
 
-    for step in range(8):
+    for step in range(num_frames):
         tic = time.time()
 
-        fname = "SampleOutput{}.jpg".format(step)
+        fname = "StereoOutput{}.jpg".format(step)
         print("\nGenerating {}".format(fname))
         t = step*move
         M = np.matmul(K,(np.hstack((R,t))))
@@ -188,9 +206,9 @@ def SampleCameraPath(
             data3DC,
             crop_region,
             filter_size,
-            # TODO[Zain] - and how to tighten the zoom, and positions for 2 rectified images
             enable_max_filter=enable_max_filter,
             resolution_scale_factor=resolution_scale_factor,
+            use_depth_logging=enable_depth_logging,
         )
 
         # Convert image values form (0-1) to (0-255) and cahnge type from float64 to float32
@@ -236,13 +254,28 @@ def main():
         default="./",
         help="Relative path to a folder for storing rendered images.",
     )
+    parser.add_argument(
+        "--use-depth-logging",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Print the closest and farthest depth of 3D scene points (assumed to be in meters).",
+    )
+    parser.add_argument(
+        "--num-frames",
+        required=False,
+        type=int,
+        default=8,
+        help="Number of images to render along the camera path.",
+    )
     args = parser.parse_args()
-    print(f"ZAIN!! Setting save dir to: ", args.save_dir)
+
     SampleCameraPath(
         enable_max_filter=args.use_max_filter,
         resolution_scale_factor=args.resolution_scale_factor,
         focal_length_scale_factor=args.focal_length_scale_factor,
         save_dir=args.save_dir,
+        num_frames=args.num_frames,
+        enable_depth_logging=args.use_depth_logging,
     )
 
 if __name__ == "__main__":
