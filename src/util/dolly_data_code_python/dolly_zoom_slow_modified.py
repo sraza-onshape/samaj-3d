@@ -37,8 +37,13 @@ def PointCloud2Image(
     print("...Initializing 2D image...")
     top = viewport[0]
     left = viewport[1]
-    h = int(viewport[2] / (resolution_scale_factor // 2))
-    w = int(viewport[3] / (int(resolution_scale_factor // 2)))
+
+    if resolution_scale_factor == 1.0:
+        h, w = viewport[2], viewport[3]
+
+    elif resolution_scale_factor != 1.0:
+        h = int(viewport[2] / (resolution_scale_factor // 2))
+        w = int(viewport[3 ] / (resolution_scale_factor // 2))
     bot = top + h + 1
     right = left + w + 1
 
@@ -121,6 +126,8 @@ def PointCloud2Image(
 def SampleCameraPath(
         enable_max_filter: bool = False,
         resolution_scale_factor: float = 1.0,
+        focal_length_scale_factor: float = 1.0,
+        save_dir: str = "./"
     ) -> None:
     """
     Example script for rendering images in a "path" around the fish statue.
@@ -135,6 +142,11 @@ def SampleCameraPath(
     Parameters:
         enable_max_filter: bool that can turn on 2D max_filtering
             (an operation used to "fill-in" blanks in the image).
+        resolution_scale_factor: A multiplier used to reduce the image
+            heightxwidth (from the default of 2048x3072).
+        focal_length_scale_factor: A multiplier used to reduce
+            the focal length - in effect adjusting the camera FOV.
+        save_dir: Relative path to a folder for storing rendered images.
 
     Returns: None
     """
@@ -146,8 +158,14 @@ def SampleCameraPath(
     crop_region = camera_objs[0].flatten()
     filter_size = camera_objs[1].flatten()
     K = camera_objs[2]
+    print(f"ZAIN!!! intrinisic matrix (before scaling): ", K)
     ForegroundPointCloudRGB = camera_objs[3]
     BackgroundPointCloudRGB = camera_objs[4]
+
+    # apply the focal lengths
+    K[0, 0] *= focal_length_scale_factor
+    K[1, 1] *= focal_length_scale_factor
+    print(f"ZAIN!!! intrinisic matrix (after scaling): ", K)
 
     # create variables for computation
     data3DC = (
@@ -181,7 +199,7 @@ def SampleCameraPath(
         img_bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
 
         # write image to file 'fname'
-        cv2.imwrite(fname,img_bgr)
+        cv2.imwrite(f"{save_dir}{fname}", img_bgr)
 
         toc = time.time()
         toc = toc-tic
@@ -203,10 +221,27 @@ def main():
         default=1.0,
         help="A multiplier used to reduce the image heightxwidth (from the default of 2048x3072).",
     )
+    parser.add_argument(
+        "--focal-length-scale-factor",
+        required=False,
+        type=float,
+        default=1.0,
+        help="A multiplier used to reduce the focal length - in effect adjusting the camera FOV.",
+    )
+    parser.add_argument(
+        "--save-dir",
+        required=False,
+        type=str,
+        default="./",
+        help="Relative path to a folder for storing rendered images.",
+    )
     args = parser.parse_args()
+    print(f"ZAIN!! Setting save dir to: ", args.save_dir)
     SampleCameraPath(
         enable_max_filter=args.use_max_filter,
         resolution_scale_factor=args.resolution_scale_factor,
+        focal_length_scale_factor=args.focal_length_scale_factor,
+        save_dir=args.save_dir,
     )
 
 if __name__ == "__main__":
