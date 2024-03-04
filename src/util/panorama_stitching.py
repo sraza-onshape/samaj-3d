@@ -40,16 +40,22 @@ class PanoramaStitcher:
 
         # Composite the two images into 1 panorama
         panorama_img = np.zeros(panorama_output_shape)
-        panorama_img[:, :overlap_start_coordinate_x] = left_img_transformed[:, :overlap_start_coordinate_x]
-        panorama_img[:, overlap_start_coordinate_x:left_img_transformed.shape[1]] = (
-            left_img_transformed[:, overlap_start_coordinate_x:left_img_transformed.shape[1]]
-            + right_img[:, 0:(left_img_transformed.shape[1] - overlap_start_coordinate_x)]
+        panorama_img[:, :overlap_start_coordinate_x] = left_img_transformed[
+            :, :overlap_start_coordinate_x
+        ]
+        panorama_img[:, overlap_start_coordinate_x : left_img_transformed.shape[1]] = (
+            left_img_transformed[
+                :, overlap_start_coordinate_x : left_img_transformed.shape[1]
+            ]
+            + right_img[
+                :, 0 : (left_img_transformed.shape[1] - overlap_start_coordinate_x)
+            ]
         ) / 2
         panorama_img[
-            :, left_img_transformed.shape[1]:left_img_transformed.shape[1] 
-                + overlap_start_coordinate_x
-        ] = right_img[:, (left_img_transformed.shape[1] - overlap_start_coordinate_x):]
-
+            :,
+            left_img_transformed.shape[1] : left_img_transformed.shape[1]
+            + overlap_start_coordinate_x,
+        ] = right_img[:, (left_img_transformed.shape[1] - overlap_start_coordinate_x) :]
 
         # Display the result
         plt.imshow(panorama_img, cmap="gray")

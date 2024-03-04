@@ -6,59 +6,59 @@ import cv2
 from scipy.signal import medfilt
 from scipy.ndimage.filters import maximum_filter as maxfilt
 
-def PointCloud2Image(M,Sets3DRGB,viewport,filter_size):
 
+def PointCloud2Image(M, Sets3DRGB, viewport, filter_size):
     # setting yp output image
     print("...Initializing 2D image...")
     top = viewport[0]
     left = viewport[1]
     h = viewport[2]
     w = viewport[3]
-    bot = top  + h + 1
-    right = left + w +1
-    output_image = np.zeros((h+1,w+1,3));    
+    bot = top + h + 1
+    right = left + w + 1
+    output_image = np.zeros((h + 1, w + 1, 3))
 
     for counter in range(len(Sets3DRGB)):
         print("...Projecting point cloud into image plane...")
 
         # clear drawing area of current layer
-        canvas = np.zeros((bot,right,3))
+        canvas = np.zeros((bot, right, 3))
 
         # segregate 3D points from color
         dataset = Sets3DRGB[counter]
-        P3D = dataset[:3,:]
-        color = (dataset[3:6,:]).T
-        
+        P3D = dataset[:3, :]
+        color = (dataset[3:6, :]).T
+
         # form homogeneous 3D points (4xN)
         len_P = len(P3D[1])
-        ones = np.ones((1,len_P))
+        ones = np.ones((1, len_P))
         X = np.concatenate((P3D, ones))
 
         # apply (3x4) projection matrix
-        x = np.matmul(M,X)
+        x = np.matmul(M, X)
 
         # normalize by 3rd homogeneous coordinate
-        x = np.around(np.divide(x, np.array([x[2,:],x[2,:],x[2,:]])))
+        x = np.around(np.divide(x, np.array([x[2, :], x[2, :], x[2, :]])))
 
         # truncate image coordinates
-        x[:2,:] = np.floor(x[:2,:])
+        x[:2, :] = np.floor(x[:2, :])
 
         # determine indices to image points within crop area
-        i1 = x[1,:] > top
-        i2 = x[0,:] > left
-        i3 = x[1,:] < bot
-        i4 = x[0,:] < right
+        i1 = x[1, :] > top
+        i2 = x[0, :] > left
+        i3 = x[1, :] < bot
+        i4 = x[0, :] < right
         ix = np.logical_and(i1, np.logical_and(i2, np.logical_and(i3, i4)))
 
         # make reduced copies of image points and cooresponding color
-        rx = x[:,ix]
-        rcolor = color[ix,:]
+        rx = x[:, ix]
+        rcolor = color[ix, :]
 
         for i in range(len(rx[0])):
-            canvas[int(rx[1,i]),int(rx[0,i]),:] = rcolor[i,:]
+            canvas[int(rx[1, i]), int(rx[0, i]), :] = rcolor[i, :]
 
         # crop canvas to desired output size
-        cropped_canvas = canvas[top:top+h+1,left:left+w+1]
+        cropped_canvas = canvas[top : top + h + 1, left : left + w + 1]
 
         # filter individual color channels
         shape = cropped_canvas.shape
@@ -66,25 +66,24 @@ def PointCloud2Image(M,Sets3DRGB,viewport,filter_size):
         print("...Running 2D filters...")
         for i in range(3):
             # max filter
-            filtered_cropped_canvas[:,:,i] = maxfilt(cropped_canvas[:,:,i],5)
+            filtered_cropped_canvas[:, :, i] = maxfilt(cropped_canvas[:, :, i], 5)
 
-        
         # get indices of pixel drawn in the current canvas
-        drawn_pixels = np.sum(filtered_cropped_canvas,2)
+        drawn_pixels = np.sum(filtered_cropped_canvas, 2)
         idx = drawn_pixels != 0
         shape = idx.shape
-        shape = (shape[0],shape[1],3)
-        idxx = np.zeros(shape,dtype=bool)
+        shape = (shape[0], shape[1], 3)
+        idxx = np.zeros(shape, dtype=bool)
 
         # make a 3-channel copy of the indices
-        idxx[:,:,0] = idx
-        idxx[:,:,1] = idx
-        idxx[:,:,2] = idx
+        idxx[:, :, 0] = idx
+        idxx[:, :, 1] = idx
+        idxx[:, :, 2] = idx
 
         # erase canvas drawn pixels from the output image
         output_image[idxx] = 0
 
-        #sum current canvas on top of output image
+        # sum current canvas on top of output image
         output_image = output_image + filtered_cropped_canvas
 
     print("Done")
@@ -96,10 +95,11 @@ def PointCloud2Image(M,Sets3DRGB,viewport,filter_size):
 #       BackgroundPointCloudRGB,ForegroundPointCloudRGB,K,crop_region,filter_size
 # None of these variables needs to be modified
 
+
 # load variables: BackgroundPointCloudRGB,ForegroundPointCloudRGB,K,crop_region,filter_size)
 def SampleCameraPath():
     # load object file to retrieve data
-    file_p = open("data.obj",'rb')
+    file_p = open("data.obj", "rb")
     camera_objs = pickle.load(file_p)
 
     # extract objects from object array
@@ -118,7 +118,7 @@ def SampleCameraPath():
     # create variables for computation
     # - background has the XYZ coords,
     # - foreground has the RGB values
-    data3DC = (BackgroundPointCloudRGB,ForegroundPointCloudRGB)
+    data3DC = (BackgroundPointCloudRGB, ForegroundPointCloudRGB)
 
     ### Attempt 8 - who cares what angle of rotation is used, just point the camera at the object
     def compute_rotation_matrix(camera_position, object_position):
@@ -133,14 +133,27 @@ def SampleCameraPath():
         yaw = np.arctan2(direction_vector[0], -direction_vector[2])
 
         # Second, compute pitch angle (rotation about X-axis)
-        pitch = np.arctan2(direction_vector[1], np.sqrt(direction_vector[0]**2 + direction_vector[2]**2))
+        pitch = np.arctan2(
+            direction_vector[1],
+            np.sqrt(direction_vector[0] ** 2 + direction_vector[2] ** 2),
+        )
 
         # Construct rotation matrix based on computed rotation angles (yaw, pitch)
-        rotation_matrix = np.array([
-            [np.cos(yaw), 0, -np.sin(yaw)],
-            [np.sin(yaw)*np.sin(pitch), np.cos(pitch), np.cos(yaw)*np.sin(pitch)],
-            [np.sin(yaw)*np.cos(pitch), -np.sin(pitch), np.cos(yaw)*np.cos(pitch)]
-        ])
+        rotation_matrix = np.array(
+            [
+                [np.cos(yaw), 0, -np.sin(yaw)],
+                [
+                    np.sin(yaw) * np.sin(pitch),
+                    np.cos(pitch),
+                    np.cos(yaw) * np.sin(pitch),
+                ],
+                [
+                    np.sin(yaw) * np.cos(pitch),
+                    -np.sin(pitch),
+                    np.cos(yaw) * np.cos(pitch),
+                ],
+            ]
+        )
 
         return rotation_matrix
 
@@ -158,29 +171,31 @@ def SampleCameraPath():
     for step in range(1, 2):
         tic = time.time()
 
-        t = (step*move).reshape(3, 1)
+        t = (step * move).reshape(3, 1)
         print(step, move, t)
         fname = f"SampleOutput{step}-position-{t[0, 0]}-{t[1, 0]}-{t[2, 0]}-scale-in-focal-xy-{scale_factor_focal_length_x}-{scale_factor_focal_length_y}-camWhateverAngle-5.jpg"
         print("\nGenerating {}".format(fname))
-        M = np.matmul(K,(np.hstack((R,t))))
+        M = np.matmul(K, (np.hstack((R, t))))
         print("M:", M)
-        img = PointCloud2Image(M,data3DC,crop_region,filter_size)
+        img = PointCloud2Image(M, data3DC, crop_region, filter_size)
 
         # Convert image values form (0-1) to (0-255) and cahnge type from float64 to float32
-        img = 255*(np.array(img, dtype=np.float32))
+        img = 255 * (np.array(img, dtype=np.float32))
 
         # convert image from RGB to BGR for OpenCV
         img_bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
 
         # write image to file 'fname'
-        cv2.imwrite(fname,img_bgr)
+        cv2.imwrite(fname, img_bgr)
 
         toc = time.time()
-        toc = toc-tic
+        toc = toc - tic
         print("{0:.4g} s".format(toc))
+
 
 def main():
     SampleCameraPath()
+
 
 if __name__ == "__main__":
     main()

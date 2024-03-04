@@ -11,16 +11,82 @@ import numpy as np
 from PIL import Image
 
 
+def compute_disparity_from_depth(
+    baseline: float, focal_length: float, depth: float
+) -> float:
+    """
+    Utilize the relationship d = b*f / Z to arrive at disparity.
+    """
+    b, f, Z = baseline, focal_length, depth
+    return (b * f) / Z
+
+
+def compute_stereo_camera_baseline(
+    R1: np.ndarray, t1: np.ndarray, R2: np.ndarray, t2: np.ndarray
+) -> float:
+    """
+    Calculate the baseline in meters.
+
+    Parameters:
+        R1(np.ndarray): 3x3 rotation matrix for the 1st image
+        t1(np.ndarray): 3x1 translation vector for the 2nd image
+            (units assumed to be in meters)
+        R2(np.ndarray): 3x3 rotation matrix for the 2nd image
+        t2(np.ndarray): 3x1 translation vector for the 2nd image
+            (units assumed to be in meters)
+
+    Returns: float: the stereo camera basline
+    """
+    camera_center_1 = (-1 * np.linalg.inv(R1)) @ t1
+    camera_center_2 = (-1 * np.linalg.inv(R2)) @ t2
+    return np.linalg.norm(camera_center_1 - camera_center_2, ord=2)
+
+
+def evaluate_disparity_map(
+    predicted: np.ndarray,
+    true: np.ndarray,
+    scale_factor: int = 1,
+    threshold: float = 0,
+) -> None:
+    """
+    Prints the error rate in a disparity levels.
+
+    Assumes both maps are of the same shape.
+
+    Parameters:
+        predicted(np.ndarray): the computed disparity map
+        true(np.ndarray): the ground truth disparity map
+        scale_factor(int): optional, the amount we divide the disparities in
+            the ground truth by
+        threshold(float): the amount of allowed difference between the
+            the disparity maps
+
+    Returns: None
+    """
+    ground_truth = true.copy() / scale_factor
+    difference = np.abs(predicted - ground_truth)
+    num_bad_pixels = np.where(difference > threshold, 1, 0).sum()
+    num_total_pixels = np.prod(predicted.shape)
+    print(
+        f"Error rate: {np.round((num_bad_pixels / num_total_pixels), decimals=4) * 100}%."
+    )
+
+
 class Filter2D(Enum):
+    """Two-dimensional filters commonly used in computer vision."""
+
     HORIZONTAL_SOBEL_FILTER = [[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]]
     IDENTITY_FILTER = [[0, 0, 0], [0, 1, 0], [0, 0, 0]]
     VERTICAL_SOBEL_FILTER = [[-1, -2, -1], [0, 0, 0], [1, 2, 1]]
 
 
 class SimilarityMeasure(Enum):
+    """Similarity measures commonly used in computer vision."""
+
     SSD = "sum_squared_difference"
     NCC = "normalized_cross_correlation"  # aka, the Pearson Correlation Coef
     COS = "cosine_similarity"
+    SAD = "sum_absolute_difference"
     NULL = "randomness"  #  when selected, this means we don't actually care about similarity
 
 
@@ -56,6 +122,7 @@ def compute_similarity(
         SimilarityMeasure.NCC,
         SimilarityMeasure.SSD,
         SimilarityMeasure.COS,
+        SimilarityMeasure.SAD,
     ],
     arr1: np.ndarray,
     arr2: np.ndarray,
@@ -65,10 +132,10 @@ def compute_similarity(
     whatever similiarity measure you want to compute.
 
     Parameters:
-        mode(SimilarityMeasure): specify if you want normalized cross-correlation, SSD, or cosine similarity
+        mode(SimilarityMeasure): specify if you want normalized cross-correlation, SSD, cosine similarity, or SAD
         arr1, arr2: two array-likes of the same shape
-    
-    Returns: array-like
+
+    Returns: float: the computed similarity value
     """
 
     ### HELPERS
@@ -90,11 +157,16 @@ def compute_similarity(
         """Output array has a shape of (1,)."""
         return (arr1 @ arr2) / (np.linalg.norm(arr1) * np.linalg.norm(arr2))
 
+    def _compute_sum_absolute_difference(arr1: np.ndarray, arr2: np.ndarray) -> float:
+        """Output array has a shape of (1,)."""
+        return np.sum(np.linalg.norm(arr1 - arr2, ord=1))
+
     ### DRIVER
     measure_funcs = {
         SimilarityMeasure.SSD: _compute_ssd,
         SimilarityMeasure.NCC: _compute_ncc,
         SimilarityMeasure.COS: _compute_cosine_similarity,
+        SimilarityMeasure.SAD: _compute_sum_absolute_difference,
     }
     return measure_funcs[mode](arr1, arr2)
 
@@ -150,7 +222,9 @@ def load_image(
 
 
 def convolve_matrices(matrix1: List[List[float]], matrix2: List[List[float]]) -> float:
-    """asumes both matrices have the same, non-zero dimensions"""
+    """
+    Convolution in 2D, assuming both matrices have the same, non-zero dimensions.
+    """
     width, height = len(matrix1[0]), len(matrix1)
 
     product = 0
@@ -257,8 +331,29 @@ def pad(
         List[int]
     ],  # TODO[make it so users can just specify dims of the filter)
     stride: int,
-    padding_type: str,
-) -> Tuple[np.array, int, int]:
+    padding_type: Union[Literal["zero"], Literal["repeat"]],
+) -> Tuple[np.ndarray, int, int]:
+    """
+    Add additional pixels along the border of an image.
+
+    This auto-computes the dimensions that a padded image would need to have,
+    in order for the output of a filtering operation to have the same dimensions
+    as a given input image.
+
+    Parameters:
+        image(array-like): 2D array representing an image
+        img_filter(array-like): 2D array representing some linear
+                                operator you want to eventually use to
+                                perform some kind of processing on the image
+        stride(int): what distance you would want there to be in between each
+                     local neighborhood of the image used for a filtering operation
+        padding_type("zero" or "repeat"): determines the value used in the added pixels
+
+    Returns: tuple[array-like, int, int]: the padded image, as
+                                          well as two ints reporting how
+                                          much bigger the height and width of it are
+                                          vs. the original image
+    """
     padded_image = list()
 
     # compute the # of pixels needed to pad the image (in x and y)

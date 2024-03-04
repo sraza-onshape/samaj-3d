@@ -108,7 +108,7 @@ class KMeans:
         xs = points[:, 0]
         ys = points[:, 1]
         zs = points[:, 2]
-        ax.scatter(xs, ys, zs, color="g", s=.05, alpha=.05)
+        ax.scatter(xs, ys, zs, color="g", s=0.05, alpha=0.05)
 
         # visualize the cluster centers
         centroids = np.array(list(kmeans.centroid_coords.values()))

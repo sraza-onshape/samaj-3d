@@ -456,10 +456,7 @@ class HarrisCornerDetector(BaseCornerDetector):
         )
 
         cls.visualize_correspondences(
-            left_img,
-            right_img,
-            top_similarities,
-            plot_title=plot_title
+            left_img, right_img, top_similarities, plot_title=plot_title
         )
 
         return super().execute_and_visualize()
