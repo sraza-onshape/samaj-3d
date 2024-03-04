@@ -67,7 +67,6 @@ nbformat==5.9.2
 nest-asyncio==1.6.0
 notebook_shim==0.2.4
 numpy==1.26.4
-open3d==0.18.0
 opencv-python==4.9.0.80
 overrides==7.7.0
 packaging==23.2
