@@ -11,6 +11,67 @@ import numpy as np
 from PIL import Image
 
 
+def compute_disparity_from_depth(
+    baseline: float, focal_length: float, depth: float
+) -> float:
+    """
+    Utilize the relationship d = b*f / Z to arrive at disparity.
+    """
+    b, f, Z = baseline, focal_length, depth
+    return (b * f) / Z
+
+
+def compute_stereo_camera_baseline(
+    R1: np.ndarray, t1: np.ndarray, R2: np.ndarray, t2: np.ndarray
+) -> float:
+    """
+    Calculate the baseline in meters.
+
+    Parameters:
+        R1(np.ndarray): 3x3 rotation matrix for the 1st image
+        t1(np.ndarray): 3x1 translation vector for the 2nd image
+            (units assumed to be in meters)
+        R2(np.ndarray): 3x3 rotation matrix for the 2nd image
+        t2(np.ndarray): 3x1 translation vector for the 2nd image
+            (units assumed to be in meters)
+
+    Returns: float: the stereo camera basline
+    """
+    camera_center_1 = (-1 * np.linalg.inv(R1)) @ t1
+    camera_center_2 = (-1 * np.linalg.inv(R2)) @ t2
+    return np.linalg.norm(camera_center_1 - camera_center_2, ord=2)
+
+
+def evaluate_disparity_map(
+    predicted: np.ndarray,
+    true: np.ndarray,
+    scale_factor: int = 1,
+    threshold: float = 0,
+) -> None:
+    """
+    Prints the error rate in a disparity levels.
+
+    Assumes both maps are of the same shape.
+
+    Parameters:
+        predicted(np.ndarray): the computed disparity map
+        true(np.ndarray): the ground truth disparity map
+        scale_factor(int): optional, the amount we divide the disparities in
+            the ground truth by
+        threshold(float): the amount of allowed difference between the
+            the disparity maps
+
+    Returns: None
+    """
+    ground_truth = true.copy() / scale_factor
+    difference = np.abs(predicted - ground_truth)
+    num_bad_pixels = np.where(difference > threshold, 1, 0).sum()
+    num_total_pixels = np.prod(predicted.shape)
+    print(
+        f"Error rate: {np.round((num_bad_pixels / num_total_pixels), decimals=4) * 100}%."
+    )
+
+
 class Filter2D(Enum):
     """Two-dimensional filters commonly used in computer vision."""
 
