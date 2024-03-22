@@ -332,7 +332,7 @@ def pad(
     ],  # TODO[make it so users can just specify dims of the filter)
     stride: int,
     padding_type: Union[Literal["zero"], Literal["repeat"]],
-) -> Tuple[np.ndarray, int, int]:
+) -> tuple[np.ndarray, int, int]:
     """
     Add additional pixels along the border of an image.
 
