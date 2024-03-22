@@ -83,6 +83,7 @@ class SimpleStereoDisparityMap:
             compute_patch_sum_helper: Callable,
             ptl: np.ndarray,
             ptr: np.ndarray,
+            starting_row_ndx: int,
         ) -> np.ndarray:
             """
             Computes a single row of disparity levels based on SAD.
@@ -92,6 +93,7 @@ class SimpleStereoDisparityMap:
                                                     filled in so it can be used as a 1D function.
                 ptl(2D np.ndarray): the left image, after having been rank transformed
                 ptr(2D np.ndarray): the right image, after having been rank transformed
+                starting_row_ndx(int): index of the top row to use in calculating patch sums
 
             Returns: np.ndarray: a 1D array of int's
             """
@@ -191,44 +193,90 @@ class SimpleStereoDisparityMap:
         padded_transformed_left, _, _ = ops.pad(
             transformed_left, kernel, stride=self.stride, padding_type=self.padding_type
         )
-        ptl = padded_transformed_left
+        ptl: np.ndarray = padded_transformed_left
         padded_transformed_right, _, _ = ops.pad(
             transformed_right,
             kernel,
             stride=self.stride,
             padding_type=self.padding_type,
         )
-        ptr = padded_transformed_right
+        ptr: np.ndarray = padded_transformed_right
         assert (
             ptl.shape == ptr.shape
         ), f"Shape mismatch after padding: {ptl.shape} != {ptr.shape}"
         # create the output image
         output = np.zeros_like(self.left_image)
 
-        compute_patch_sum_helper = functools.partial(
-            _compute_patch_sum,
-            kernel_dims=kernel.shape,
-        )
+        # TODO[Zain] - debug this faster implementation in the future!
+        # compute_patch_sum_helper = functools.partial(
+        #     _compute_patch_sum,
+        #     kernel_dims=kernel.shape,
+        # )
 
-        # for every row in the first image
-        kernel_h, _ = kernel.shape
+        # # for every row in the first image
+        # kernel_h, _ = kernel.shape
+        # for starting_row_ndx in np.arange(
+        #     0, ptl.shape[0] - kernel_h + self.stride, self.stride
+        # ).astype(int):
+        #     # compute the next row of the output disparity map, using the given similarity metric
+        #     disparity = None
+        #     if similarity_measure == SimilarityMeasure.SAD:
+        #         disparity = _compute_row_of_disparity_map_sad(
+        #             compute_patch_sum_helper, ptl, ptr, starting_row_ndx,
+        #         )
+        #     else:  # similarity_measure is something other than SAD
+        #         raise NotImplementedError(
+        #             f"Sorry, using similarity_measure = {similarity_measure} is not supported."
+        #         )
+        #     # fill in the output
+        #     output[starting_row_ndx, :disparity.shape[0]] = disparity
+
+        # "Brute force"
+        # for each row
+        kernel_h, kernel_w = kernel.shape
+        output_row_ndx = 0
         for starting_row_ndx in np.arange(
             0, ptl.shape[0] - kernel_h + self.stride, self.stride
-        ).astype(int):
-            # compute the next row of the output disparity map, using the given similarity metric
-            disparity = None
-            if similarity_measure == SimilarityMeasure.SAD:
-                disparity = _compute_row_of_disparity_map_sad(
-                    compute_patch_sum_helper,
-                    ptl,
-                    ptr,
+        ):
+            # for each pixel
+            disparity_row = list()
+            for left_starting_col_ndx in np.arange(
+                0, ptl.shape[1] - kernel_w + self.stride, self.stride
+            ):
+                left_center_col_ndx = left_starting_col_ndx + (kernel_w // 2)
+                # init lowest_sum
+                lowest_sum, best_center_index = float("inf"), left_center_col_ndx
+                left_patch = ptl[
+                    starting_row_ndx : starting_row_ndx + kernel_h,
+                    left_starting_col_ndx : left_starting_col_ndx + kernel_w,
+                ]
+                disparity_search_range = min(max_disparity_level, left_center_col_ndx)
+                disparity_search_stop_index = (
+                    max(0, left_center_col_ndx - disparity_search_range) - 1
                 )
-            else:  # similarity_measure is something other than SAD
-                raise NotImplementedError(
-                    f"Sorry, using similarity_measure = {similarity_measure} is not supported."
-                )
-            # fill in the output
-            output[starting_row_ndx, : disparity.shape[0]] = disparity
+                # for every column (from the current_col to (current_col - disp_level=current_col))
+                for right_center_col_ndx in range(
+                    left_center_col_ndx, disparity_search_stop_index, -1 * self.stride
+                ):
+
+                    # in the right img, same row --> compute every SAD
+                    right_starting_col_ndx = right_center_col_ndx - (kernel_w // 2)
+                    if right_starting_col_ndx > -1:
+                        right_patch = ptr[
+                            starting_row_ndx : starting_row_ndx + kernel_h,
+                            right_starting_col_ndx : right_starting_col_ndx + kernel_w,
+                        ]
+                        sad_val = np.sum(np.abs(left_patch - right_patch))
+
+                        # take the min to get to the disparity
+                        if sad_val < lowest_sum:
+                            lowest_sum = sad_val
+                            best_center_index = right_center_col_ndx
+
+                disparity_row.append(left_center_col_ndx - best_center_index)
+
+            output[output_row_ndx, :] = np.array(disparity_row)
+            output_row_ndx += 1
 
         # final checks
         assert (
