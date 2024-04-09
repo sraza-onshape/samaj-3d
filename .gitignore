@@ -6,7 +6,7 @@ __pycache__/
 # C extensions
 *.so
 
-# Assets 
+# Assets
 *.png
 SampleOutput*.jpg
 !/Circle-Center-Detection/*.png
@@ -20,6 +20,7 @@ Image-Warping-and-Point-Cloud-Rendering/generated-images/problem-2*
 .vscode
 .DS_Store
 submissions/*
+hw*.pdf
 
 # Distribution / packaging
 .Python

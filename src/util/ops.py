@@ -477,7 +477,7 @@ def non_max_suppression_2D(matrix: np.array) -> np.array:
             ]
             neighbors[1][
                 1
-            ] = 0  # hack to prevent the center value from "self-suppressing" (I have no idea, I made that term up)
+            ] = 0  # hack to prevent the center value from "self-suppressing" (I have no idea if that's a real term, I made that term up)
             # zero out the appropiate value(s)
             if center_val > neighbors.max():  # suppression of neighbors
                 padded_matrix[
