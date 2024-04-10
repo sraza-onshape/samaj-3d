@@ -219,19 +219,27 @@ class HarrisCornerDetector(BaseCornerDetector):
             corner_response(nd.array): a nxm matrix
             top_many_features(int): this is k
 
-        Returns: np.ndarray: a kx2 matrix representing the YX coordinates
-            of the top k Harris corners.
+        Returns: np.ndarray: a kx3 matrix representing the top Harris corners as:
+            - their y-coordinate
+            - their x-coordinate
+            - the value of their Harris corner response
         """
         height, width = corner_response.shape
-        coordinate_value_pairs = np.zeros((width * height, 3))
+        coordinate_value_pairs = np.zeros((height * width, 3))
+        pixel_indices_flattened = np.arange(height * width)
+
+        # first, populate all the YX coordinate locations
+        coordinate_value_pairs[:, :2] = ops.convert_1d_indices_to_2d(
+            corner_response,
+            pixel_indices_flattened
+        )
+
+        # add the corner response at each locations
         for val_index in range(coordinate_value_pairs.shape[0]):
-            row_index = val_index // width
-            col_index = val_index - (width * row_index)
-            coordinate_value_pairs[val_index] = [
-                row_index,
-                col_index,
-                corner_response[row_index, col_index],
-            ]
+            row_index, col_index = coordinate_value_pairs[val_index, :2].astype(int)
+            coordinate_value_pairs[val_index, 2] = corner_response[row_index, col_index]
+
+        # filter out the locations with the largest corner responses
         return np.array(
             heapq.nlargest(
                 top_many_features,

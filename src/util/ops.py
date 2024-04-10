@@ -114,7 +114,7 @@ def convert_1d_indices_to_2d(
 
     Returns: np.ndarray: has shape of (n*m, 2)
     """
-    return (indices // matrix.shape[1], indices % matrix.shape[1])
+    return np.column_stack([indices // matrix.shape[1], indices % matrix.shape[1]])
 
 
 def compute_similarity(
