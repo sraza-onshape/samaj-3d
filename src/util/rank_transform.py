@@ -1,5 +1,7 @@
 import numpy as np
 
+from util import ops
+
 
 class RankTransform2D:
     """Performs rank filtering on an image."""
@@ -48,7 +50,8 @@ class RankTransform2D:
             kernel_h, kernel_w = kernel.shape
             # B: get the block of pixels needed for the convolution
             block_of_pixels = image[
-                row_index : (kernel_h + row_index), col_index : (kernel_w + col_index)
+                row_index : (kernel_h + row_index),
+                col_index : (kernel_w + col_index)
             ]
             # C: count the of # higher than the center
             center_val = block_of_pixels[kernel_h // 2, kernel_w // 2]
@@ -72,7 +75,9 @@ class RankTransform2D:
 
         # make a copy of the img, padded - will be an intermediate repr
         kernel = np.ones((filter_side_length, filter_side_length))
-        padded_image, _, _ = ops.pad(image, kernel, stride=1, padding_type="zero")
+        padded_image, _, _ = ops.pad(
+            image, kernel, stride=1, padding_type="zero"
+        å)
         # fill in the output
         stride = 1
         output_image = list()

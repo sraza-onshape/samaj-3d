@@ -287,10 +287,11 @@ class HarrisCornerDetector(BaseCornerDetector):
         """
         Computes a 2D list of feature correspondences.
 
-        The `descriptors` parameter is assumed to only contain 2 sets of descriptors:
-        one for each of the two images we have in HW 3 (CS 558).
+        The `descriptors` parameter is assumed to only contain 2 sets of descriptors.
+        Each of the elements in this collection should be structured the same way
+        as the output of the `compute_feature_descriptors()` method in this class.
 
-        Each nested list in the out follows the format of: (
+        Each nested list in the output follows the format of: (
             int: index of a feature from image 1,
             int: index of a feature from image 2,
             float: the similarity between the two, if known
@@ -342,7 +343,10 @@ class HarrisCornerDetector(BaseCornerDetector):
 
         # choose the strongest correspondences overall, across all the points
         top_similarities = []
-        if similarity_metric == SimilarityMeasure.SSD:
+        if (
+            similarity_metric == SimilarityMeasure.SSD
+            or similarity_metric == SimilarityMeasure.SAD
+        ):
             # the lower the measure, the better the correspondence
             top_similarities = np.array(
                 heapq.nsmallest(
