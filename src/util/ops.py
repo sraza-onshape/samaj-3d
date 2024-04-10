@@ -354,6 +354,7 @@ def pad(
                                           much bigger the height and width of it are
                                           vs. the original image
     """
+    assert isinstance(image, (list, tuple, np.ndarray))
     padded_image = list()
 
     # compute the # of pixels needed to pad the image (in x and y)

@@ -34,7 +34,21 @@ class HarrisCornerDetector(BaseCornerDetector):
         derivative_operator_y: list[list[int]] = None,
         gaussian_window: np.ndarray = None,
     ) -> np.ndarray:
-        """Find potential corner points in an image."""
+        """
+        Find potential corner points in an image.
+
+        Parameters:
+            image(np.ndarray): assumes a single grayscale image of shape NxM
+            use_non_max_suppression(bool): whether or not to use non-max suppression
+            derivative_operator_x(array-like): filter we'll use in computing
+                the Harris corner response. Defaults to using the Horizontal Sobel.
+            derivative_operator_y(array-like): filter we'll use in computing
+                the Harris corner response. Defaults to using the Vertical Sobel.
+            gaussian_window(array-like): optional Gaussian filter to smooth the image.
+                Defaults to a 3x3 Gaussian filter that uses sigma = 1.
+
+        Returns: np.ndarray: NxM matrix that represents the Harris corner response
+        """
 
         ### HELPERS
         def _compute_derivatives_in_gaussian_window(
@@ -63,21 +77,21 @@ class HarrisCornerDetector(BaseCornerDetector):
                     padding_type="zero",
                 ),
             )
-            image_list = image.tolist()
+            # image_list = image.tolist()
             (hessian_xx, hessian_yy, hessian_xy) = (
                 np.array(
                     ops.convolution(
-                        image_list, second_order_derivator_x, padding_type="zero"
+                        image, second_order_derivator_x, padding_type="zero"
                     )
                 ),
                 np.array(
                     ops.convolution(
-                        image_list, second_order_derivator_y, padding_type="zero"
+                        image, second_order_derivator_y, padding_type="zero"
                     )
                 ),
                 np.array(
                     ops.convolution(
-                        image_list, second_order_derivator_xy, padding_type="zero"
+                        image, second_order_derivator_xy, padding_type="zero"
                     )
                 ),
             )
