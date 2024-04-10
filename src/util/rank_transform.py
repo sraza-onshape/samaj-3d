@@ -77,7 +77,7 @@ class RankTransform2D:
         kernel = np.ones((filter_side_length, filter_side_length))
         padded_image, _, _ = ops.pad(
             image, kernel, stride=1, padding_type="zero"
-        å)
+        )
         # fill in the output
         stride = 1
         output_image = list()
