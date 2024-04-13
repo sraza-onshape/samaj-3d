@@ -647,6 +647,7 @@ class RANSACRigidTransformFitter(RANSACAffineTransformFitter):
             sample_count = 0
             cp = corresponding_points
             outlier_ratios = list()
+            previously_sampled = set()
             e = 1.0  # this is the initial outlier_ratio
             all_potential_samplings = list(
                 itertools.combinations(
@@ -660,8 +661,11 @@ class RANSACRigidTransformFitter(RANSACAffineTransformFitter):
                 and cp.shape[0] > s
                 and sample_count < len(all_potential_samplings)
             ):
-                # extract proposed points to use for estimating the transform
-                focus_group_point_indices = all_potential_samplings[sample_count]
+                # extract proposed points randomly to use for estimating the transform
+                next_sample_index = np.random.choice(range(len(all_potential_samplings)), 1)[0]
+                while next_sample_index in previously_sampled:
+                    next_sample_index = np.random.choice(range(len(all_potential_samplings)), 1)[0]
+                focus_group_point_indices = all_potential_samplings[next_sample_index]
                 points = corresponding_points[focus_group_point_indices, :3]
                 p1 = points[0, :]
                 p2 = points[1, :]
@@ -694,6 +698,7 @@ class RANSACRigidTransformFitter(RANSACAffineTransformFitter):
                     print(f"Avg reprojection error (1 iteration): {np.mean(distances)}.")
                     print(f"================================================")
                 sample_count += 1
+                previously_sampled.add(next_sample_index)  # prevent resampling
                 if e == 1.0:  # defensive coding
                     num_iterations_upper_bound = float("inf")
                 elif 1.0 > e > 0.0:
