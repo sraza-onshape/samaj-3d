@@ -1,5 +1,6 @@
 from __future__ import annotations
 import heapq
+import itertools
 import math
 from typing import Callable, List, Tuple
 
@@ -498,7 +499,6 @@ class RANSACRigidTransformFitter(RANSACAffineTransformFitter):
         num_top_models_to_return: int = 1,
         max_iter: int = None,
         do_logging: bool = False,
-        prevent_resampling=True,
     ) -> Tuple[List[Tuple[np.array, float]], int]:
         """
         Executes the RANSAC algorithm to fit multiple models across a dataset.
@@ -526,16 +526,10 @@ class RANSACRigidTransformFitter(RANSACAffineTransformFitter):
 
         ### HELPERS
         def _sample_transform(
-            correspondence_coordinates: np.array,
+            sample: np.array,
             t: float,
-            s: int,
         ) -> Tuple[np.array, float, List[float]]:
-            cc = correspondence_coordinates
             inlier_threshold = t
-            # select a minimal sample of correspondences - TODO[debug][Zain]: ask TA if random sampling ok? or do we need to be sure the correspondences are not colinear?
-            sample_indices = np.random.choice(range(cc.shape[0]), size=s, replace=False)
-            sample = cc[sample_indices]
-
             # Estimate a rigid transformation - start by getting all the points
             image1_p1, image2_p1 = sample[0, :3], sample[0, 3:]
             image1_p2, image2_p2 = sample[1, :3], sample[1, 3:]
@@ -543,7 +537,6 @@ class RANSACRigidTransformFitter(RANSACAffineTransformFitter):
 
             # get the inter-point translations
             if do_logging:
-                print(f"cc: {cc.shape}")
                 print(f"Sample {sample.shape}, sample: {sample}")
                 print(image1_p1, image1_p2)
                 print(image1_p1.shape, image1_p2.shape)
@@ -583,9 +576,9 @@ class RANSACRigidTransformFitter(RANSACAffineTransformFitter):
 
             # find the inliers
 
-            image1_points = cc[:, 0:3]
-            image2_points = cc[:, 3:6]
-            both_pairs = cc[:, 0:6]
+            image1_points = corresponding_points[:, 0:3]
+            image2_points = corresponding_points[:, 3:6]
+            both_pairs = corresponding_points[:, 0:6]
             if do_logging:
                 print(
                     "Original: ",
@@ -620,17 +613,24 @@ class RANSACRigidTransformFitter(RANSACAffineTransformFitter):
             inlier_indices = np.where(distances < inlier_threshold)[0]
             if do_logging:
                 print(type(inlier_indices), len(inlier_indices), inlier_indices)
-            inliers = cc[inlier_indices]
+            inliers = corresponding_points[inlier_indices]
 
             # ensure the same inliers not used twice, and return the info about this line
-            modified_correspondence_coords = cc
-            if prevent_resampling:
-                mask = np.ones(cc.shape[0], bool)
-                mask[inlier_indices] = 0
-                outlier_indices = np.where(mask == 1)  # .astype(int)
-                modified_correspondence_coords = cc[outlier_indices]
+            modified_correspondence_coords = corresponding_points
 
             return (modified_correspondence_coords, (inliers, (rotation, translation)), distances)
+
+        def _are_non_collinear(p1: np.ndarray, p2: np.ndarray, p3: np.ndarray) -> bool:
+            """Determine if sampled points are non-collinear."""
+            # Calculate vectors between the points
+            v1 = p2 - p1
+            v2 = p3 - p1
+
+            # Calculate cross product of the vectors
+            cross_product = np.cross(v1, v2)
+
+            # Check if cross product is non-zero
+            return not np.allclose(cross_product, 0)
 
         def _run_RANSAC_adaptively(
             add_to_results: Callable,
@@ -648,27 +648,52 @@ class RANSACRigidTransformFitter(RANSACAffineTransformFitter):
             cp = corresponding_points
             outlier_ratios = list()
             e = 1.0  # this is the initial outlier_ratio
+            all_potential_samplings = list(
+                itertools.combinations(
+                    np.arange(corresponding_points.shape[0]),
+                    s
+                )
+            )
 
-            while sample_count < num_iterations_upper_bound and cp.shape[0] > s:
-                cp, next_model, distances = _sample_transform(cp, t, s)
-                add_to_results(next_model)
-                num_inliers = next_model[0].shape[0]
+            while (
+                sample_count < num_iterations_upper_bound
+                and cp.shape[0] > s
+                and sample_count < len(all_potential_samplings)
+            ):
+                # extract proposed points to use for estimating the transform
+                focus_group_point_indices = all_potential_samplings[sample_count]
+                points = corresponding_points[focus_group_point_indices, :3]
+                p1 = points[0, :]
+                p2 = points[1, :]
+                p3 = points[2, :]
 
-                # alert user if no inliers - this will probably fail
-                if num_inliers > 0:
-                    new_inlier_ratio = num_inliers / total_num_points
-                    if new_inlier_ratio > best_inlier_ratio:
-                        # recompute N from e
-                        best_inlier_ratio = new_inlier_ratio
-                        e = 1 - best_inlier_ratio
-                        outlier_ratios.append(e)
+                print(f"======= Iteration {sample_count + 1} Report: ========")
+
+                if not _are_non_collinear(p1, p2, p3):
+                    print(
+                        f"Whoops, I chose colinear points @ row indices {focus_group_point_indices}. "
+                        "Skipping to the next iteration..."
+                    )
+                else:
+                    cp, next_model, distances = _sample_transform(corresponding_points[focus_group_point_indices, :], t)
+                    add_to_results(next_model)
+                    num_inliers = next_model[0].shape[0]
+
+                    # alert user if no inliers - this will probably fail
+                    if num_inliers > 0:
+                        new_inlier_ratio = num_inliers / total_num_points
+                        if new_inlier_ratio > best_inlier_ratio:
+                            # recompute N from e
+                            best_inlier_ratio = new_inlier_ratio
+                            e = 1 - best_inlier_ratio
+                            outlier_ratios.append(e)
+
+                    print(f"No. of Inliers: {num_inliers}")
+                    print(f"Outlier Ratio (e): {e}")
+                    print(f"No. of Iterations (Expected): {num_iterations_upper_bound}.")
+                    print(f"Avg reprojection error (1 iteration): {np.mean(distances)}.")
+                    print(f"================================================")
                 sample_count += 1
-                print(f"======= Iteration {sample_count} Report: ========")
-                print(f"No. of Inliers: {num_inliers}")
-                print(f"Outlier Ratio (e): {e}")
-                print(f"No. of Iterations (Expected): {num_iterations_upper_bound}.")
-                print(f"Avg reprojection error (1 iteration): {np.mean(distances)}.")
-                print(f"================================================")
                 if e == 1.0:  # defensive coding
                     num_iterations_upper_bound = float("inf")
                 elif 1.0 > e > 0.0:
@@ -683,6 +708,7 @@ class RANSACRigidTransformFitter(RANSACAffineTransformFitter):
         def _choose_top_k_results(
             all_results: List[Tuple[np.array, float]], k: int
         ) -> List:
+            """Chooses the best model based on which had the most inliers."""
             top_k_results_heap = heapq.nlargest(
                 k, all_results, key=lambda group: group[0].shape[0]
             )
