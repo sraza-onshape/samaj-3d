@@ -491,8 +491,8 @@ class RANSACRigidTransformFitter(RANSACAffineTransformFitter):
     CONFIDENCE_LEVEL_FOR_NUM_ITERATIONS = 0.99
 
     def fit(
-        self,
-        corresponding_points: np.array,
+        self: RANSACRigidTransformFitter,
+        corresponding_points: np.ndarray,
         required_number_of_inliers: int = 3,
         distance_threshold: float = 3.0,  # TODO[ask TA about this threshold]
         num_top_models_to_return: int = 1,
@@ -542,6 +542,11 @@ class RANSACRigidTransformFitter(RANSACAffineTransformFitter):
             image1_p3, image2_p3 = sample[2, :3], sample[2, 3:]
 
             # get the inter-point translations
+            if do_logging:
+                print(f"cc: {cc.shape}")
+                print(f"Sample {sample.shape}, sample: {sample}")
+                print(image1_p1, image1_p2)
+                print(image1_p1.shape, image1_p2.shape)
             image1_translation1 = image1_p1 - image1_p2
             image1_translation2 = image1_p2 - image1_p3
 
@@ -554,6 +559,9 @@ class RANSACRigidTransformFitter(RANSACAffineTransformFitter):
                 np.cross(image2_translation1, image2_translation2)
             ])
 
+            if do_logging:
+                print(image1_translation1.shape, image1_translation2.shape)
+                print(np.cross(image1_translation1, image1_translation2).shape)
             factor2 = linalg.inv(
                 np.column_stack([
                     image1_translation1,
@@ -567,13 +575,13 @@ class RANSACRigidTransformFitter(RANSACAffineTransformFitter):
             U, _, Vh = linalg.svd(rotation_transformed)
 
             rotation = U @ Vh
-            translation = image2_p1 - (rotation @ image1_p1)
+            translation = (image2_p1 - (rotation @ image1_p1)).reshape(1, 3)
 
             if do_logging:
                 print(f"R: {rotation, rotation.shape}")
                 print(f"t: {translation, translation.shape}")
 
-            # TODO[review] find the inliers
+            # find the inliers
 
             image1_points = cc[:, 0:3]
             image2_points = cc[:, 3:6]
@@ -591,7 +599,7 @@ class RANSACRigidTransformFitter(RANSACAffineTransformFitter):
                     len(both_pairs),
                     both_pairs,
                 )
-            reprojected_points = (rotation.dot(image1_points.T) + translation).T
+            reprojected_points = (image1_points @ rotation) + translation
             if do_logging:
                 print(
                     "Reprojected: ",
@@ -614,7 +622,7 @@ class RANSACRigidTransformFitter(RANSACAffineTransformFitter):
                 print(type(inlier_indices), len(inlier_indices), inlier_indices)
             inliers = cc[inlier_indices]
 
-            # TODO[review] ensure the same inliers not used twice, and return the info about this line
+            # ensure the same inliers not used twice, and return the info about this line
             modified_correspondence_coords = cc
             if prevent_resampling:
                 mask = np.ones(cc.shape[0], bool)
