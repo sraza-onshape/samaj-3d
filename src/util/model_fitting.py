@@ -574,7 +574,7 @@ class RANSACRigidTransformFitter(RANSACAffineTransformFitter):
 
             U, _, Vh = linalg.svd(rotation_transformed)
 
-            rotation = U @ Vh
+            rotation = U @ Vh.T
             translation = (image2_p1 - (rotation @ image1_p1)).reshape(1, 3)
 
             if do_logging:
@@ -669,7 +669,9 @@ class RANSACRigidTransformFitter(RANSACAffineTransformFitter):
                 print(f"No. of Iterations (Expected): {num_iterations_upper_bound}.")
                 print(f"Avg reprojection error (1 iteration): {np.mean(distances)}.")
                 print(f"================================================")
-                if e > 0.0:  # defensive coding
+                if e == 1.0:  # defensive coding
+                    num_iterations_upper_bound = float("inf")
+                elif 1.0 > e > 0.0:
                     num_iterations_upper_bound = self.compute_expected_num_iter(p, e, s)
                 else:
                     print(f"No outliers... we have coverged! Stopping...")
