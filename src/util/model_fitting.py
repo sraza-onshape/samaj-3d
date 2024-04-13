@@ -1,3 +1,4 @@
+from __future__ import annotations
 import heapq
 import math
 from typing import Callable, List, Tuple
@@ -27,7 +28,7 @@ class RANSACLineFitter(AbstractLineFitter):
     CONFIDENCE_LEVEL_FOR_NUM_ITERATIONS = 0.99
 
     def fit(
-        self,
+        self: RANSACLineFitter,
         keypoints: np.array,
         required_number_of_inliers: int = 2,
         distance_threshold: float = 3.0,
@@ -168,7 +169,7 @@ class RANSACLineFitter(AbstractLineFitter):
 
     @classmethod
     def fit_and_report(
-        cls: "RANSACLineFitter",
+        cls: RANSACLineFitter,
         image: np.array,
         keypoint_detector_algorithm: Callable,
         image_name: str = "Image",
@@ -228,11 +229,11 @@ class RANSACAffineTransformFitter(AbstractLineFitter):
         return math.log((1 - p), 10) / math.log((1 - ((1 - e) ** s)), 10)
 
     def fit(
-        self,
+        self: RANSACAffineTransformFitter,
         corresponding_points: np.array,
-        required_number_of_inliers: int = 3,  # as per the lecture notes from week 5
-        distance_threshold: float = 3.0,  # TODO[asl TA baout this threshold]
-        num_top_models_to_return: int = 1,  # as per the requirements in hw 3
+        required_number_of_inliers: int = 3,
+        distance_threshold: float = 3.0,  # TODO[ask TA about this threshold]
+        num_top_models_to_return: int = 1,
         max_iter: int = None,
         do_logging: bool = False,
         prevent_resampling=True,
@@ -254,7 +255,7 @@ class RANSACAffineTransformFitter(AbstractLineFitter):
             1) a list of n-tuples, representing the top k models. The elements in each tuple represent the following:
                 a) a matrix of the inlier points for that model
                 b) the 2nd (and following elements, if there are any) represent the parameters of the model found.
-                    E.g., in the case of anaffine transform, this would be a 2x2 matrix representing any kind of rotation,
+                    E.g., in the case of an affine transform, this would be a 2x2 matrix representing any kind of rotation,
                     and a 1D vector representing the translation .
             2) the number of iterations for which we ran RANSAC
         """
@@ -423,7 +424,7 @@ class RANSACAffineTransformFitter(AbstractLineFitter):
 
     @classmethod
     def fit_and_report(
-        cls: "RANSACLineFitter",
+        cls: RANSACAffineTransformFitter,
         image: np.array,
         keypoint_detector_algorithm: Callable,
         image_name: str = "Image",
@@ -470,6 +471,233 @@ class RANSACAffineTransformFitter(AbstractLineFitter):
             )
         plt.title(f'RANSAC: Lines Detected for Image: "{image_name}"')
         plt.show()
+
+
+class RANSACRigidTransformFitter(RANSACAffineTransformFitter):
+    """
+    Modifies Random Sample Consensus (RANSAC) to estimate rigid transformations.
+    The algorithm is taken from hw 4 of CS 532 at Stevens Institute of Technology,
+    Spring 2024 (taught by Dr. Enrique Dunn). The assignment was based off of:
+
+    ```
+    Sturm, J., Engelhard, N., Endres, F., Burgard, W., Cremers, D.:
+    A benchmark for the evaluation of rgb-d slam systems.
+    In: Proc. of the International Conference on Intelligent Robot Systems (IROS) (Oct 2012).
+    ```
+    """
+
+    REQUIRED_NUM_MODELS_FOR_ASSIGNMENT = 1
+    # this is the probability we want to achieve, that we achieve a model with no outliers.
+    CONFIDENCE_LEVEL_FOR_NUM_ITERATIONS = 0.99
+
+    def fit(
+        self,
+        corresponding_points: np.array,
+        required_number_of_inliers: int = 3,
+        distance_threshold: float = 3.0,  # TODO[ask TA about this threshold]
+        num_top_models_to_return: int = 1,
+        max_iter: int = None,
+        do_logging: bool = False,
+        prevent_resampling=True,
+    ) -> Tuple[List[Tuple[np.array, float]], int]:
+        """
+        Executes the RANSAC algorithm to fit multiple models across a dataset.
+
+        Note: this function does NOT handle reporting the results of RANSAC.
+
+        Parameters:
+            corresponding_points: np.array:  a 2D array.
+                                             Each row is a pair of XYZ coordinates
+                                             of 3D points projected out from corresponding corners
+                                             between 2 images. Shape is (num_corresponding_points, 6).
+            required_number_of_inlier: int: default is to find a rigid transform, using 3 non-colinear point correspondences
+            distance_threshold: float: default is based on assuming Gaussian noise in a Z-dist --> ergo, 3 * stddev of 1 = 3
+            num_top_models_to_return: int. Defaults to 1 (for the purposes of HW 3, problem 2).
+
+        Returns: (array-like, int): a tuple of two values
+            1) a list of 3-tuples, representing the top k models. The elements in each tuple represent the following:
+                a) a matrix of the inlier points for that model
+                b) the 2nd (and following elements, if there are any) represent the parameters of the model found.
+                    E.g., in the case of a rigid transform, this would be 3x3 matrix representing some kind of rotation,
+                    and a 1D vector representing the translation .
+            2) the number of iterations for which we ran RANSAC
+        """
+        reprojection_errors = list()  # capture all errors, globally
+
+        ### HELPERS
+        def _sample_transform(
+            correspondence_coordinates: np.array,
+            t: float,
+            s: int,
+        ) -> Tuple[np.array, float, List[float]]:
+            cc = correspondence_coordinates
+            inlier_threshold = t
+            # select a minimal sample of correspondences - TODO[debug][Zain]: ask TA if random sampling ok? or do we need to be sure the correspondences are not colinear?
+            sample_indices = np.random.choice(range(cc.shape[0]), size=s, replace=False)
+            sample = cc[sample_indices]
+
+            # Estimate a rigid transformation - start by getting all the points
+            image1_p1, image2_p1 = sample[0, :3], sample[0, 3:]
+            image1_p2, image2_p2 = sample[1, :3], sample[1, 3:]
+            image1_p3, image2_p3 = sample[2, :3], sample[2, 3:]
+
+            # get the inter-point translations
+            image1_translation1 = image1_p1 - image1_p2
+            image1_translation2 = image1_p2 - image1_p3
+
+            image2_translation1 = image2_p1 - image2_p2
+            image2_translation2 = image2_p2 - image2_p3
+
+            factor1 = np.column_stack([
+                image2_translation1,
+                image2_translation2,
+                np.cross(image2_translation1, image2_translation2)
+            ])
+
+            factor2 = linalg.inv(
+                np.column_stack([
+                    image1_translation1,
+                    image1_translation2,
+                    np.cross(image1_translation1, image1_translation2)
+                ])
+            )
+
+            rotation_transformed = factor1 @ factor2
+
+            U, _, Vh = linalg.svd(rotation_transformed)
+
+            rotation = U @ Vh
+            translation = image2_p1 - (rotation @ image1_p1)
+
+            if do_logging:
+                print(f"R: {rotation, rotation.shape}")
+                print(f"t: {translation, translation.shape}")
+
+            # TODO[review] find the inliers
+
+            image1_points = cc[:, 0:3]
+            image2_points = cc[:, 3:6]
+            both_pairs = cc[:, 0:6]
+            if do_logging:
+                print(
+                    "Original: ",
+                    type(image1_points),
+                    len(image1_points),
+                    image1_points,
+                )
+                print(
+                    "Both pairs: ",
+                    type(both_pairs),
+                    len(both_pairs),
+                    both_pairs,
+                )
+            reprojected_points = (rotation.dot(image1_points.T) + translation).T
+            if do_logging:
+                print(
+                    "Reprojected: ",
+                    type(reprojected_points),
+                    reprojected_points.shape,
+                    reprojected_points,
+                )
+            distances = linalg.norm(image2_points - reprojected_points, axis=1)
+            reprojection_errors.extend(distances.tolist())  # we'll need this later...
+            if do_logging:
+                print(
+                    "Distances: ",
+                    type(distances),
+                    distances.shape,
+                    distances,
+                )
+
+            inlier_indices = np.where(distances < inlier_threshold)[0]
+            if do_logging:
+                print(type(inlier_indices), len(inlier_indices), inlier_indices)
+            inliers = cc[inlier_indices]
+
+            # TODO[review] ensure the same inliers not used twice, and return the info about this line
+            modified_correspondence_coords = cc
+            if prevent_resampling:
+                mask = np.ones(cc.shape[0], bool)
+                mask[inlier_indices] = 0
+                outlier_indices = np.where(mask == 1)  # .astype(int)
+                modified_correspondence_coords = cc[outlier_indices]
+
+            return (modified_correspondence_coords, (inliers, (rotation, translation)), distances)
+
+        def _run_RANSAC_adaptively(
+            add_to_results: Callable,
+            s: int,
+            total_num_points: int,
+            t: float,
+            p: float,
+        ) -> Tuple[int, float]:
+            """Run RANSAC for however many iterations it takes to find the best line, and not more."""
+            N = num_iterations_upper_bound = float("inf")
+            if max_iter is not None:
+                num_iterations_upper_bound = max_iter
+            best_inlier_ratio = float("-inf")
+            sample_count = 0
+            cp = corresponding_points
+            outlier_ratios = list()
+            e = 1.0  # this is the initial outlier_ratio
+
+            while sample_count < num_iterations_upper_bound and cp.shape[0] > s:
+                cp, next_model, distances = _sample_transform(cp, t, s)
+                add_to_results(next_model)
+                num_inliers = next_model[0].shape[0]
+
+                # alert user if no inliers - this will probably fail
+                if num_inliers > 0:
+                    new_inlier_ratio = num_inliers / total_num_points
+                    if new_inlier_ratio > best_inlier_ratio:
+                        # recompute N from e
+                        best_inlier_ratio = new_inlier_ratio
+                        e = 1 - best_inlier_ratio
+                        outlier_ratios.append(e)
+                sample_count += 1
+                print(f"======= Iteration {sample_count} Report: ========")
+                print(f"No. of Inliers: {num_inliers}")
+                print(f"Outlier Ratio (e): {e}")
+                print(f"No. of Iterations (Expected): {num_iterations_upper_bound}.")
+                print(f"Avg reprojection error (1 iteration): {np.mean(distances)}.")
+                print(f"================================================")
+                if e > 0.0:  # defensive coding
+                    num_iterations_upper_bound = self.compute_expected_num_iter(p, e, s)
+                else:
+                    print(f"No outliers... we have coverged! Stopping...")
+                    break
+            N = num_iterations_upper_bound
+            avg_e = np.array(outlier_ratios).mean()
+            return N, avg_e
+
+        def _choose_top_k_results(
+            all_results: List[Tuple[np.array, float]], k: int
+        ) -> List:
+            top_k_results_heap = heapq.nlargest(
+                k, all_results, key=lambda group: group[0].shape[0]
+            )
+            return top_k_results_heap
+
+        ### DRIVER
+        # map input args to parameters of RANSAC
+        s = required_number_of_inliers
+        total_num_points = corresponding_points.shape[0]
+        t = distance_threshold
+        p = self.CONFIDENCE_LEVEL_FOR_NUM_ITERATIONS
+
+        # init return value
+        results = list()
+
+        # populate the full list of RANSAC results
+        N, avg_e = _run_RANSAC_adaptively(results.append, s, total_num_points, t, p)
+
+        print("================= Global Results ===============")
+        print(f"Average Outlier Ratio (e): {avg_e}")
+        print(f"Average reprojection error: {np.array(reprojection_errors).mean()}.")
+
+        # return the top results
+        top_k_results_heap = _choose_top_k_results(results, num_top_models_to_return)
+        return top_k_results_heap, N, avg_e
 
 
 class HoughTransformFitter(AbstractLineFitter):
