@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from numpy import linalg
 
+from util import ops
 from util.ops import (
     Filter2D,
     pad as padding_op,
@@ -620,18 +621,6 @@ class RANSACRigidTransformFitter(RANSACAffineTransformFitter):
 
             return (modified_correspondence_coords, (inliers, (rotation, translation)), distances)
 
-        def _are_non_collinear(p1: np.ndarray, p2: np.ndarray, p3: np.ndarray) -> bool:
-            """Determine if sampled points are non-collinear."""
-            # Calculate vectors between the points
-            v1 = p2 - p1
-            v2 = p3 - p1
-
-            # Calculate cross product of the vectors
-            cross_product = np.cross(v1, v2)
-
-            # Check if cross product is non-zero
-            return not np.allclose(cross_product, 0)
-
         def _run_RANSAC_adaptively(
             add_to_results: Callable,
             s: int,
@@ -673,7 +662,7 @@ class RANSACRigidTransformFitter(RANSACAffineTransformFitter):
 
                 print(f"======= Iteration {sample_count + 1} Report: ========")
 
-                if not _are_non_collinear(p1, p2, p3):
+                if not ops.are_non_collinear(p1, p2, p3):
                     print(
                         f"Whoops, I chose colinear points @ row indices {focus_group_point_indices}. "
                         "Skipping to the next iteration..."

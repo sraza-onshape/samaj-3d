@@ -11,6 +11,47 @@ import numpy as np
 from PIL import Image
 
 
+def estimate_plane_parameters_from_points(
+        point1: np.ndarray,
+        point2: np.ndarray,
+        point3: np.ndarray,
+    ) -> np.ndarray:
+    """Estimate a plane using three XYZ points assumed to be non-colinear."""
+    # compute two vectors in the plane
+    vector1 = point2 - point1  # Subtracting two points gives a vector
+    vector2 = point3 - point1
+
+    # compute the cross product
+    normal_vector = np.cross(vector1, vector2)
+
+    # normalize
+    normal_vector /= np.linalg.norm(normal_vector)
+
+    # compute the constant d using one of the points
+    d = -1 * (normal_vector @ point1)
+
+    # Return the coefficients (a, b, c, d)
+    return np.array([
+        normal_vector[0],
+        normal_vector[1],
+        normal_vector[2],
+        d
+    ])
+
+
+def are_non_collinear(p1: np.ndarray, p2: np.ndarray, p3: np.ndarray) -> bool:
+    """Determine if three sampled points in 3D are non-collinear."""
+    # Calculate vectors between the points
+    v1 = p2 - p1
+    v2 = p3 - p1
+
+    # Calculate cross product of the vectors
+    cross_product = np.cross(v1, v2)
+
+    # Check if cross product is non-zero
+    return not np.allclose(cross_product, 0)
+
+
 def compute_disparity_from_depth(
     baseline: float, focal_length: float, depth: float
 ) -> float:
