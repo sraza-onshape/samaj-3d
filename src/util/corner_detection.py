@@ -30,8 +30,25 @@ class HarrisCornerDetector(BaseCornerDetector):
         self,
         image: np.ndarray,
         use_non_max_suppression: bool = False,
+        derivative_operator_x: list[list[int]] = None,
+        derivative_operator_y: list[list[int]] = None,
+        gaussian_window: np.ndarray = None,
     ) -> np.ndarray:
-        """Find potential corner points in an image."""
+        """
+        Find potential corner points in an image.
+
+        Parameters:
+            image(np.ndarray): assumes a single grayscale image of shape NxM
+            use_non_max_suppression(bool): whether or not to use non-max suppression
+            derivative_operator_x(array-like): filter we'll use in computing
+                the Harris corner response. Defaults to using the Horizontal Sobel.
+            derivative_operator_y(array-like): filter we'll use in computing
+                the Harris corner response. Defaults to using the Vertical Sobel.
+            gaussian_window(array-like): optional Gaussian filter to smooth the image.
+                Defaults to a 3x3 Gaussian filter that uses sigma = 1.
+
+        Returns: np.ndarray: NxM matrix that represents the Harris corner response
+        """
 
         ### HELPERS
         def _compute_derivatives_in_gaussian_window(
@@ -45,36 +62,36 @@ class HarrisCornerDetector(BaseCornerDetector):
                 second_order_derivator_xy,
             ) = (
                 ops.convolution(
-                    Filter2D.HORIZONTAL_SOBEL_FILTER.value,
-                    Filter2D.HORIZONTAL_SOBEL_FILTER.value,
+                    derivative_operator_x,
+                    derivative_operator_x,
                     padding_type="zero",
                 ),
                 ops.convolution(
-                    Filter2D.VERTICAL_SOBEL_FILTER.value,
-                    Filter2D.VERTICAL_SOBEL_FILTER.value,
+                    derivative_operator_y,
+                    derivative_operator_y,
                     padding_type="zero",
                 ),
                 ops.convolution(
-                    Filter2D.HORIZONTAL_SOBEL_FILTER.value,
-                    Filter2D.VERTICAL_SOBEL_FILTER.value,
+                    derivative_operator_x,
+                    derivative_operator_y,
                     padding_type="zero",
                 ),
             )
-            image_list = image.tolist()
+            # image_list = image.tolist()
             (hessian_xx, hessian_yy, hessian_xy) = (
                 np.array(
                     ops.convolution(
-                        image_list, second_order_derivator_x, padding_type="zero"
+                        image, second_order_derivator_x, padding_type="zero"
                     )
                 ),
                 np.array(
                     ops.convolution(
-                        image_list, second_order_derivator_y, padding_type="zero"
+                        image, second_order_derivator_y, padding_type="zero"
                     )
                 ),
                 np.array(
                     ops.convolution(
-                        image_list, second_order_derivator_xy, padding_type="zero"
+                        image, second_order_derivator_xy, padding_type="zero"
                     )
                 ),
             )
@@ -165,7 +182,12 @@ class HarrisCornerDetector(BaseCornerDetector):
             return np.array(corner_response)
 
         ### DRIVER
-        gaussian_window = BaseGaussianFilter().create_gaussian_filter()
+        if derivative_operator_x is None:
+            derivative_operator_x = Filter2D.HORIZONTAL_SOBEL_FILTER.value
+        if derivative_operator_y is None:
+            derivative_operator_y = Filter2D.VERTICAL_SOBEL_FILTER
+        if gaussian_window is None:
+            gaussian_window = BaseGaussianFilter().create_gaussian_filter()
         (
             convolved_hessian_xx,
             convolved_hessian_yy,
@@ -190,17 +212,34 @@ class HarrisCornerDetector(BaseCornerDetector):
         corner_response: np.ndarray,
         top_many_features: int = TOP_MANY_FEATURES_TO_DETECT,
     ):
-        """TODO[Zain]: add docstring"""
+        """
+        Choose the largest k points computed as a response to the Harris corner detector.
+
+        Parameters:
+            corner_response(nd.array): a nxm matrix
+            top_many_features(int): this is k
+
+        Returns: np.ndarray: a kx3 matrix representing the top Harris corners as:
+            - their y-coordinate
+            - their x-coordinate
+            - the value of their Harris corner response
+        """
         height, width = corner_response.shape
-        coordinate_value_pairs = np.zeros((width * height, 3))
+        coordinate_value_pairs = np.zeros((height * width, 3))
+        pixel_indices_flattened = np.arange(height * width)
+
+        # first, populate all the YX coordinate locations
+        coordinate_value_pairs[:, :2] = ops.convert_1d_indices_to_2d(
+            corner_response,
+            pixel_indices_flattened
+        )
+
+        # add the corner response at each locations
         for val_index in range(coordinate_value_pairs.shape[0]):
-            row_index = val_index // width
-            col_index = val_index - (width * row_index)
-            coordinate_value_pairs[val_index] = [
-                row_index,
-                col_index,
-                corner_response[row_index, col_index],
-            ]
+            row_index, col_index = coordinate_value_pairs[val_index, :2].astype(int)
+            coordinate_value_pairs[val_index, 2] = corner_response[row_index, col_index]
+
+        # filter out the locations with the largest corner responses
         return np.array(
             heapq.nlargest(
                 top_many_features,
@@ -216,10 +255,19 @@ class HarrisCornerDetector(BaseCornerDetector):
         image_name: str,
         top_many_features: int = TOP_MANY_FEATURES_TO_DETECT,
         use_non_max_suppression: bool = False,
-    ):
+        derivative_operator_x: list[list[int]] = None,
+        derivative_operator_y: list[list[int]] = None,
+        gaussian_window: np.ndarray = None,
+    ) -> None:
         # detect_features
         detector = cls()
-        corner_response = detector.detect_features(image, use_non_max_suppression)
+        corner_response = detector.detect_features(
+            image,
+            use_non_max_suppression,
+            derivative_operator_x=derivative_operator_x,
+            derivative_operator_y=derivative_operator_y,
+            gaussian_window=gaussian_window,
+        )
         # pick top features
         top_k_points = detector.pick_top_features(corner_response, top_many_features)
         # plotting
@@ -239,10 +287,11 @@ class HarrisCornerDetector(BaseCornerDetector):
         """
         Computes a 2D list of feature correspondences.
 
-        The `descriptors` parameter is assumed to only contain 2 sets of descriptors:
-        one for each of the two images we have in HW 3.
+        The `descriptors` parameter is assumed to only contain 2 sets of descriptors.
+        Each of the elements in this collection should be structured the same way
+        as the output of the `compute_feature_descriptors()` method in this class.
 
-        Each nested list in the out follows the format of: (
+        Each nested list in the output follows the format of: (
             int: index of a feature from image 1,
             int: index of a feature from image 2,
             float: the similarity between the two, if known
@@ -294,7 +343,10 @@ class HarrisCornerDetector(BaseCornerDetector):
 
         # choose the strongest correspondences overall, across all the points
         top_similarities = []
-        if similarity_metric == SimilarityMeasure.SSD:
+        if (
+            similarity_metric == SimilarityMeasure.SSD
+            or similarity_metric == SimilarityMeasure.SAD
+        ):
             # the lower the measure, the better the correspondence
             top_similarities = np.array(
                 heapq.nsmallest(

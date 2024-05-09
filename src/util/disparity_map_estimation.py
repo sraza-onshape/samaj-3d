@@ -1,6 +1,5 @@
 from __future__ import annotations
 from dataclasses import dataclass
-import functools
 from typing import Callable, Literal, Union
 
 import matplotlib.pyplot as plt
@@ -8,6 +7,7 @@ import numpy as np
 
 from util import ops
 from util.ops import SimilarityMeasure
+from util.rank_transform import RankTransform2D
 
 
 @dataclass
